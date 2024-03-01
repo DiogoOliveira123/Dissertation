@@ -1,6 +1,7 @@
 
-
 """------------ FUNCTIONS --------------"""
+import cv2
+from PIL import Image, ImageDraw, ImageFont
 
 
 def get_initial_timestamp(my_str, char1, char2):
@@ -100,3 +101,64 @@ def compare_timestamps(my_list1, my_list2, highest_list, lowest_list_length):
 
     return (result_position_timestamp_list1, result_timestamp_list1,
             result_position_timestamp_list2, result_timestamp_list2)
+
+
+def extract_images(video_path, output_folder):
+    # Open the video file
+    cap = cv2.VideoCapture(video_path)
+
+    # Check if the video file is opened successfully
+    if not cap.isOpened():
+        print("Error opening video file")
+        return
+
+    # Get the frames per second (fps) and frame width/height
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Create the output folder if it doesn't exist
+    import os
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Loop through frames and save them as images
+    frame_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Save the frame as an image
+        image_filename = f"{output_folder}/frame_{frame_count:04d}.jpg"
+        cv2.imwrite(image_filename, frame)
+
+        frame_count += 1
+
+    # Release the video capture object
+    cap.release()
+
+    print(f"Frames extracted successfully: {frame_count}")
+
+
+def write_text_on_image(input_image_path, output_image_path, text, position=(10, 10), font_size=20,
+                        font_color=(255, 255, 255), font_path="arial.ttf"):
+    # Open the image
+    img = Image.open(input_image_path)
+
+    # Create a drawing object
+    draw = ImageDraw.Draw(img)
+
+    # Set the font size directly by creating a font object
+    if font_path:
+        font = ImageFont.truetype(font_path, font_size)
+    else:
+        font = ImageFont.load_default()
+
+    # Draw text on the image with the specified font size
+    draw.text(position, text, font=font, fill=font_color)
+
+    # Save the result
+    img.save(output_image_path)
+
+
