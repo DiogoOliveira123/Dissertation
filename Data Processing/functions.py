@@ -50,6 +50,7 @@ def get_depth_timestamps(my_str, char1, char2):
 
 def get_rgb_timestamps(zip_ref, my_list):
     """
+    Get the timestamps from the RGB data.
     :param zip_ref: zip file to be opened
     :param my_list: RGB list to be processed
     :return: list of RGB timestamps
@@ -67,6 +68,7 @@ def get_rgb_timestamps(zip_ref, my_list):
 
 def compare_timestamps(my_list1, my_list2, highest_list, lowest_list_length):
     """
+    Compare timestamps from different data sources.
     :param my_list1: Xsens 30 Hz timestamps list.
     :param my_list2: Depth timestamps or rgb timestamps lists, depending on the highest initial timestamp.
     :param highest_list: List with the highest initial timestamp.
@@ -104,6 +106,12 @@ def compare_timestamps(my_list1, my_list2, highest_list, lowest_list_length):
 
 
 def extract_images(video_path, output_folder):
+    """
+    Extract frames from a video.
+    :param video_path: path to the video to be processed
+    :param output_folder: path to where the frames will be saved
+    :return: no return
+    """
     # Open the video file
     cap = cv2.VideoCapture(video_path)
 
@@ -143,6 +151,17 @@ def extract_images(video_path, output_folder):
 
 def write_text_on_image(input_image_path, output_image_path, text, position=(10, 10), font_size=20,
                         font_color=(255, 255, 255), font_path="arial.ttf"):
+    """
+    Execute the labeling to a set of given frames, by writing the label into the top left corner of the image.
+    :param input_image_path:
+    :param output_image_path:
+    :param text:
+    :param position:
+    :param font_size:
+    :param font_color:
+    :param font_path:
+    :return:
+    """
     # Open the image
     img = Image.open(input_image_path)
 
