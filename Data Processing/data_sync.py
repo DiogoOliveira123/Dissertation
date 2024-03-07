@@ -42,7 +42,7 @@ match user_input:
     case '1':
         """----------- DATA SYNCHRONIZATION -----------"""
         """----------- ITERATE THROUGH EVERY PARTICIPANT WITH A PROGRESS BAR -----------"""
-        for participant in tqdm(range(2, NUMBER_PARTICIPANTS), desc="Processing Participants"):
+        for participant in tqdm(range(1, NUMBER_PARTICIPANTS), desc="Processing Participants"):
             path_zip = os.path.join(directory_participants, contents[participant])
 
             """----------- OPEN ZIP FILE -----------"""
@@ -95,7 +95,7 @@ match user_input:
                                     for name in files if name.endswith(".csv")]
                     sorted_sum_FC_files = sorted(sum_FC_files, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
 
-                    file_labels = pd.read_csv(sorted_sum_FC_files[trial])
+                    file_labels = pd.read_csv(sorted_sum_FC_files[trial], header=None)
                     labels_value = file_labels.values
 
                     # Convert it to a list
@@ -146,9 +146,14 @@ match user_input:
                     xsens_aligned_list = []
                     position_timestamp_xsens = []
 
+                    sum_FC_labels_30Hz_aligned = []
+
                     # Get the lowest length of the 3 lists, to limit their lengths (making them all equal)
                     lowest_list_length = min(len(xsens_30hz_timestamps), len(depth_timestamps),
                                              len(rgb_timestamps), len(sum_FC_labels_30Hz))
+
+                    if not len(xsens_30hz_timestamps) == len(sum_FC_labels_30Hz):
+                        raise Exception('Xsens Timestamps must have the same length as the Labels.')
 
                     # Get the highest initial timestamp, to define the reference for the 3 lists
                     highest_timestamp = max(xsens_30hz_timestamps[0], depth_timestamps[0], rgb_timestamps[0])
@@ -159,14 +164,24 @@ match user_input:
                         depth_timestamps_aligned.extend(depth_timestamps[:lowest_list_length])
                         # This is the referential
                         for i in range(lowest_list_length):
-                            position_timestamp_depth.append(i + 1)
+                            position_timestamp_depth.append(i)
 
                     if highest_timestamp == rgb_timestamps[0]:
                         position_timestamp_xsens, xsens_aligned_list, position_timestamp_depth, depth_timestamps_aligned = func.compare_timestamps(xsens_30hz_timestamps, depth_timestamps, rgb_timestamps, lowest_list_length)
                         rgb_timestamps_aligned.extend(rgb_timestamps[:lowest_list_length])
                         # This is the referential
                         for i in range(lowest_list_length):
-                            position_timestamp_rgb.append(i + 1)
+                            position_timestamp_rgb.append(i)
+
+                    if highest_timestamp == xsens_30hz_timestamps[0]:
+                        position_timestamp_rgb, rgb_timestamps_aligned, position_timestamp_depth, depth_timestamps_aligned = func.compare_timestamps(rgb_timestamps, depth_timestamps, xsens_30hz_timestamps, lowest_list_length)
+                        xsens_aligned_list.extend(xsens_30hz_timestamps[:lowest_list_length])
+                        # This is the referential
+                        for i in range(lowest_list_length):
+                            position_timestamp_xsens.append(i + 1)
+
+                    for i in range(lowest_list_length):
+                        sum_FC_labels_30Hz_aligned.append(sum_FC_labels_30Hz[position_timestamp_xsens[i]])
 
                     """----------- CREATE PLOTS FOR DATA VERIFICATION -----------"""
                     # Subtract the highest initial timestamp, to decrease b in y = mx + b
@@ -207,14 +222,14 @@ match user_input:
                     path_sync = os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\DATA_PROCESSING\Trials\Trials_Sync_v2',
                                              participant_trial_number)
 
-                    mydict = [{'Frames Xsens': position_timestamp_xsens, ' Frames Depth': position_timestamp_rgb,
-                               ' Frames RGB': position_timestamp_depth, ' Labels': sum_FC_labels_30Hz}
+                    mydict = [{'Position Xsens': position_timestamp_xsens, ' Position RGB': position_timestamp_rgb,
+                               ' Position Depth': position_timestamp_depth, ' Labels': sum_FC_labels_30Hz_aligned}
                               for position_timestamp_xsens, position_timestamp_rgb, position_timestamp_depth,
-                              sum_FC_labels_30Hz
+                              sum_FC_labels_30Hz_aligned
                               in zip(position_timestamp_xsens, position_timestamp_rgb, position_timestamp_depth,
-                                     sum_FC_labels_30Hz)]
+                                     sum_FC_labels_30Hz_aligned)]
 
-                    header = ['Frames Xsens', ' Frames Depth', ' Frames RGB', ' Labels']
+                    header = ['Position Xsens', ' Position RGB', ' Position Depth', ' Labels']
 
                     folder = f'Trial_{trial + 1}'
 
@@ -275,44 +290,51 @@ match user_input:
                 zip_contents = zip_ref.namelist()
 
                 for trial in tqdm(range(trials), desc=f"Participant [{participant + 1}] - Processing Trials"):
-                    """----------- GET SUM_FC LABELS -----------"""
-                    # Sum_FC Variables
-                    trial_labels = []
-                    sum_FC_labels_60Hz = []
-                    sum_FC_labels_30Hz = []
 
-                    path_labels_participants = os.path.join(directory_labels, sorted_contents_labels[participant])
+                    # Get video files
+                    video_files = [item for item in zip_contents if item.endswith('avi') and item.__contains__('gait')]
+                    sorted_video_files = sorted(video_files, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
+                    corrected_video_files = [item.replace('/', '\\') for item in sorted_video_files]
 
-                    # Get the csv sum_FC files
-                    sum_FC_files = [os.path.join(root, name) for root, dirs, files in os.walk(path_labels_participants)
-                                    for name in files if name.endswith(".csv")]
-                    sorted_sum_FC_files = sorted(sum_FC_files, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
+                    # Sync Files Variables
+                    trial_positions = []
+                    list_trial_positions = []
 
-                    file_labels = pd.read_csv(sorted_sum_FC_files[trial])
-                    labels_value = file_labels.values
+                    path_sync_excel = (f'C:\\Users\\diman\\PycharmProjects\\dissertation\\DATA_PROCESSING\\Trials'
+                                       f'\\Trials_Sync_v2\\Participant_{participant + 1}')
+
+                    # Get the sync files
+                    sync_file = [os.path.join(root, name) for root, dirs, files in os.walk(path_sync_excel)
+                                 for name in files if name.endswith(".csv")]
+                    sorted_sync_file = sorted(sync_file, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
+
+                    csv_file = pd.read_csv(sorted_sync_file[trial])
+                    positions = csv_file.values
 
                     # Convert it to a list
-                    trial_labels.append(labels_value.tolist())
+                    trial_positions.append(positions.tolist())
 
                     # Loop that converts a list[list[list[]]] to a list[]
-                    for element in trial_labels:
+                    for element in trial_positions:
                         for value in element:
                             for i in value:
-                                sum_FC_labels_60Hz.append(i)
+                                list_trial_positions.append(i)
 
-                    """----------- LABELS 60 HZ -> 30 HZ DOWN-SAMPLING -----------"""
-                    sum_FC_labels_30Hz.extend(sum_FC_labels_60Hz[::2])
+                    # Get extracted frames
+                    dir_frames = os.listdir(
+                        f'C:\\Users\\diman\\OneDrive\\Ambiente de Trabalho\\DATASET\\GAIT_FRAMES'
+                        f'\\Participant_{participant + 1}\\Trial_{trial + 1}')
 
-                    # Get number of frames
-                    dir_frames = os.listdir(f'C:\\Users\\diman\\OneDrive\\Ambiente de Trabalho\\DATASET\\GAIT_FRAMES'
-                                            f'\\Participant_{participant + 1}\\Trial_{trial + 1}')
+                    # Get labels from sync file
+                    labels = list_trial_positions[3::4]
 
-                    number_frames = len(dir_frames) - 1
+                    # Get RGB frames from sync file
+                    rgb_frames = list_trial_positions[1::4]
 
-                    # Get the minimum length between the number of frames and number of labels
-                    min_length = min(number_frames, len(sum_FC_labels_30Hz))
+                    i = 0
 
-                    for frame in range(min_length):
+                    # Loop through the extracted RGB frames
+                    for frame in rgb_frames:
                         input_image_path = os.path.join(f'C:\\Users\\diman\\OneDrive\\Ambiente de Trabalho\\DATASET\\'
                                                         f'GAIT_FRAMES\\Participant_{participant + 1}\\Trial_{trial + 1}'
                                                         , dir_frames[frame])
@@ -320,7 +342,9 @@ match user_input:
                                              f"\\Participant_{participant + 1}\\Trial_{trial + 1}\\frame_{frame}_labeled.jpg")
 
                         # Text to be added
-                        text = str(sum_FC_labels_30Hz[frame])
+                        text = str(labels[i])
+
+                        i += 1
 
                         # Position where the text will be placed (x, y)
                         position = (30, 30)
@@ -331,4 +355,5 @@ match user_input:
                         # Font color (R, G, B)
                         font_color = (255, 0, 0)
 
-                        func.write_text_on_image(input_image_path, output_image_path, text, position, font_size, font_color)
+                        func.write_text_on_image(input_image_path, output_image_path, text, position, font_size,
+                                                 font_color)

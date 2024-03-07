@@ -1,6 +1,8 @@
 
 """------------ FUNCTIONS --------------"""
 import cv2
+import numpy as np
+import os
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -69,20 +71,16 @@ def get_rgb_timestamps(zip_ref, my_list):
 def compare_timestamps(my_list1, my_list2, highest_list, lowest_list_length):
     """
     Compare timestamps from different data sources.
-    :param my_list1: Xsens 30 Hz timestamps list.
-    :param my_list2: Depth timestamps or rgb timestamps lists, depending on the highest initial timestamp.
-    :param highest_list: List with the highest initial timestamp.
-    :param lowest_list_length: Value of the lowest length of the lists to be compared.
+    :param my_list1: xsens 30 Hz timestamps list.
+    :param my_list2: depth timestamps or rgb timestamps lists, depending on the highest initial timestamp.
+    :param highest_list: list with the highest initial timestamp.
+    :param lowest_list_length: length of the smallest list.
     :return: lists of aligned timestamps and the position of each aligned timestamp in a determined list
     """
     position_timestamp_list1 = []
     timestamp_list1 = []
     position_timestamp_list2 = []
     timestamp_list2 = []
-    result_position_timestamp_list1 = []
-    result_position_timestamp_list2 = []
-    result_timestamp_list1 = []
-    result_timestamp_list2 = []
 
     for timestamp in range(lowest_list_length):
         closest_value_list1 = min(my_list1, key=lambda x: abs(highest_list[timestamp] - x))
@@ -90,19 +88,13 @@ def compare_timestamps(my_list1, my_list2, highest_list, lowest_list_length):
         position_timestamp_list1.append(position_list1)
         timestamp_list1.append(closest_value_list1)
 
-    for timestamp in range(lowest_list_length):
         closest_value_list2 = min(my_list2, key=lambda x: abs(highest_list[timestamp] - x))
         position_list2 = my_list2.index(closest_value_list2)
         position_timestamp_list2.append(position_list2)
         timestamp_list2.append(closest_value_list2)
 
-    result_position_timestamp_list1.extend(position_timestamp_list1)
-    result_position_timestamp_list2.extend(position_timestamp_list2)
-    result_timestamp_list1.extend(timestamp_list1)
-    result_timestamp_list2.extend(timestamp_list2)
-
-    return (result_position_timestamp_list1, result_timestamp_list1,
-            result_position_timestamp_list2, result_timestamp_list2)
+    return (position_timestamp_list1, timestamp_list1,
+            position_timestamp_list2, timestamp_list2)
 
 
 def extract_images(video_path, output_folder):
@@ -153,14 +145,14 @@ def write_text_on_image(input_image_path, output_image_path, text, position=(10,
                         font_color=(255, 255, 255), font_path="arial.ttf"):
     """
     Execute the labeling to a set of given frames, by writing the label into the top left corner of the image.
-    :param input_image_path:
-    :param output_image_path:
-    :param text:
-    :param position:
-    :param font_size:
-    :param font_color:
-    :param font_path:
-    :return:
+    :param input_image_path: path to the extracted frames
+    :param output_image_path: path to the labeled frames
+    :param text: text to write into the frame
+    :param position: coordinates to write the text
+    :param font_size: size of the text
+    :param font_color: color of the text
+    :param font_path: type of letter of the text
+    :return: no return
     """
     # Open the image
     img = Image.open(input_image_path)
@@ -179,5 +171,8 @@ def write_text_on_image(input_image_path, output_image_path, text, position=(10,
 
     # Save the result
     img.save(output_image_path)
+
+
+
 
 
