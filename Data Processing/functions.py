@@ -173,6 +173,46 @@ def write_text_on_image(input_image_path, output_image_path, text, position=(10,
     img.save(output_image_path)
 
 
+def process_video():
+    path_videos = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\GAIT_VIDEOS'
+    contents = os.listdir(path_videos)
+    videos = []
+
+    # Iterate over folders and subfolders to find .avi files
+    for folder_path, _, files in os.walk(os.path.join(path_videos, contents[participant])):
+        # Check if any .avi files exist in the current folder
+        for file in files:
+            if file.endswith('.avi'):
+                videos.append(os.path.join(folder_path, file))
+
+    # Open the video file
+    cap = cv2.VideoCapture(videos[trial])
+
+    if not cap.isOpened():
+        print("Error: Unable to open video.")
+
+    # Loop through the video frames
+    while True:
+        # Read a frame from the video
+        ret, frame = cap.read()
+
+        # Check if frame is successfully read
+        if not ret:
+            print("End of video.")
+            break
+
+        # Display the processed frame
+        cv2.imshow('Processed Frame', frame)
+
+        # Check for user input to exit
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Release the video capture object and close windows
+    cap.release()
+    cv2.destroyAllWindows()
+
+
 
 
 

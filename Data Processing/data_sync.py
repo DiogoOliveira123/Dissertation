@@ -16,8 +16,8 @@ contents = os.listdir(directory_participants)
 contents_labels = os.listdir(directory_labels)
 sorted_contents_labels = sorted(contents_labels, key=lambda x: int(re.search(r'Participant_(\d+)', x).group(1)))
 
-NUMBER_PARTICIPANTS = 15
-NUMBER_TRIALS = 24
+NUMBER_PARTICIPANTS = 1
+NUMBER_TRIALS = 3
 
 # TIMESTAMPS VARIABLES
 trials_initial_timestamp = []
@@ -25,12 +25,16 @@ rgb_timestamps = []
 depth_timestamps = []
 trial_sum_timestamps = []
 
-
 # CSV FILES VARIABLES
 trial_column_length = []
 increment = float(1/60)
 csv_fields_60Hz = ["Timestamp (60 Hz)"]
 csv_fields_30Hz = ["Timestamp (30 Hz)"]
+
+# ClASSES COUNT VARIABLES
+total_num_ones = 0
+total_num_n_ones = 0
+total_num_zeros = 0
 
 print("For data synchronization select: 1\n"
       "For video to frames extraction select: 2\n"
@@ -42,7 +46,7 @@ match user_input:
     case '1':
         """----------- DATA SYNCHRONIZATION -----------"""
         """----------- ITERATE THROUGH EVERY PARTICIPANT WITH A PROGRESS BAR -----------"""
-        for participant in tqdm(range(1, NUMBER_PARTICIPANTS), desc="Processing Participants"):
+        for participant in tqdm(range(NUMBER_PARTICIPANTS), desc="Processing Participants"):
             path_zip = os.path.join(directory_participants, contents[participant])
 
             """----------- OPEN ZIP FILE -----------"""
@@ -67,7 +71,7 @@ match user_input:
                 sorted_video_files = sorted(video_files, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
 
                 """----------- ITERATE THROUGH EVERY TRIAL WITH A PROGRESS BAR -----------"""
-                for trial in tqdm(range(NUMBER_TRIALS), desc=f"Participant [{participant + 1}] - Processing Trials"):
+                for trial in tqdm(range(1, NUMBER_TRIALS), desc=f"Participant [{participant + 1}] - Processing Trials"):
 
                     """----------- GET TRIALS' INITIAL TIMESTAMPS -----------"""
                     trials_initial_timestamp = func.get_initial_timestamp(sorted_folder_contents[trial], '_', '.')
@@ -183,11 +187,23 @@ match user_input:
                     for i in range(lowest_list_length):
                         sum_FC_labels_30Hz_aligned.append(sum_FC_labels_30Hz[position_timestamp_xsens[i]])
 
+                    # Get number of '1', '-1' and '0'
+                    num_ones = sum_FC_labels_30Hz_aligned.count(1)
+                    num_n_ones = sum_FC_labels_30Hz_aligned.count(-1)
+                    num_zeros = sum_FC_labels_30Hz_aligned.count(0)
+
+                    total_num_ones += num_ones
+                    total_num_n_ones += num_n_ones
+                    total_num_zeros += num_zeros
+
                     """----------- CREATE PLOTS FOR DATA VERIFICATION -----------"""
                     # Subtract the highest initial timestamp, to decrease b in y = mx + b
-                    xsens_aligned_list_plot = [timestamp - highest_timestamp for timestamp in xsens_aligned_list]
-                    depth_timestamps_aligned_plot = [timestamp - highest_timestamp for timestamp in depth_timestamps_aligned]
-                    rgb_timestamps_aligned_plot = [timestamp - highest_timestamp for timestamp in rgb_timestamps_aligned]
+                    xsens_aligned_list_plot = [timestamp - highest_timestamp for timestamp in
+                                               xsens_aligned_list]
+                    depth_timestamps_aligned_plot = [timestamp - highest_timestamp for timestamp in
+                                                     depth_timestamps_aligned]
+                    rgb_timestamps_aligned_plot = [timestamp - highest_timestamp for timestamp in
+                                                   rgb_timestamps_aligned]
 
                     y = xsens_aligned_list_plot
                     x_depth = depth_timestamps_aligned_plot
@@ -200,17 +216,21 @@ match user_input:
 
                     # Get the 3 plots
                     fig, axs = plt.subplots(1, 3)
-                    fig.suptitle(f'Timestamps Alignment Verification\nTrial: {trial + 1}, Participant: {participant + 1}')
+                    fig.suptitle(f'Timestamps Alignment Verification\nTrial: {trial + 1},'
+                                 f' Participant: {participant + 1}')
                     axs[0].plot(x_depth, y)
-                    axs[0].set_title(f'Timestamps - Xsens 30Hz & Depth\nm = {coefficients_depth[0]}, b = {coefficients_depth[1]}')
+                    axs[0].set_title(f'Timestamps - Xsens 30Hz & Depth\nm = {coefficients_depth[0]},'
+                                     f' b = {coefficients_depth[1]}')
                     axs[0].set(xlabel='Depth Timestamps', ylabel='Xsens 30Hz Timestamps')
 
                     axs[1].plot(x_rgb, y)
-                    axs[1].set_title(f'Timestamps - Xsens 30Hz & RGB\nm = {coefficients_rgb[0]}, b = {coefficients_rgb[1]}')
+                    axs[1].set_title(f'Timestamps - Xsens 30Hz & RGB\nm = {coefficients_rgb[0]},'
+                                     f' b = {coefficients_rgb[1]}')
                     axs[1].set(xlabel='RGB Timestamps', ylabel='Xsens 30Hz Timestamps')
 
                     axs[2].plot(x_rgb, x_depth)
-                    axs[2].set_title(f'Timestamps - Depth & RGB\nm = {coefficients_depth_rgb[0]}, b = {coefficients_depth_rgb[1]}')
+                    axs[2].set_title(f'Timestamps - Depth & RGB\nm = {coefficients_depth_rgb[0]},'
+                                     f' b = {coefficients_depth_rgb[1]}')
                     axs[2].set(xlabel='RGB Timestamps', ylabel='Depth Timestamps')
 
                     """----------- WRITE TO CSV FILES -----------"""
@@ -219,7 +239,7 @@ match user_input:
                                                             f'Trial_{trial + 1}.csv')
 
                     # Path for the csv file
-                    path_sync = os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\DATA_PROCESSING\Trials\Trials_Sync_v2',
+                    path_sync = os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\Trials\Trials_Sync_v2',
                                              participant_trial_number)
 
                     mydict = [{'Position Xsens': position_timestamp_xsens, ' Position RGB': position_timestamp_rgb,
@@ -234,11 +254,12 @@ match user_input:
                     folder = f'Trial_{trial + 1}'
 
                     # Path for the folders
-                    folder_trial = os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\DATA_PROCESSING\Trials\Trials_Sync_v2', f'Participant_{participant + 1}', folder)
+                    folder_trial = os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\Trials\Trials_Sync_v2',
+                                                f'Participant_{participant + 1}', folder)
 
                     # Path for the txt file
-                    path_txt = os.path.join(os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\DATA_PROCESSING\Trials\Trials_Sync_v2', f'Participant_{participant + 1}', folder),
-                                            'm_and_b_values.txt')
+                    path_txt = os.path.join(os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\Trials\Trials_Sync_v2',
+                                                         f'Participant_{participant + 1}', folder), 'm_and_b_values.txt')
 
                     # Create all trials folders, where the csv, png and txt files will be
                     os.makedirs(folder_trial, exist_ok=True)
@@ -259,12 +280,15 @@ match user_input:
                         f.write(f'Depth and RGB:\nm = {coefficients_depth_rgb[0]}, b = {coefficients_depth_rgb[1]}')
 
                     # Save the png files
-                    plt.savefig(os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\DATA_PROCESSING\Trials'
-                                             r'\Trials_Sync_v2',
+                    plt.savefig(os.path.join(r'C:\Users\diman\PycharmProjects\dissertation\Trials\Trials_Sync_v2',
                                              f'Participant_{participant + 1}', folder) + r'\Sync_Plots.png')
 
                     # Close all plots, once the trial processing is completed, to decrease the used memory when executing
                     plt.close('all')
+
+            print(f"Total number of '1': {total_num_ones}")
+            print(f"Total number of '-1': {total_num_n_ones}")
+            print(f"Total number of '0': {total_num_zeros}")
 
     case '2':
         """----------- VIDEO TO FRAMES EXTRACTION -----------"""
@@ -282,14 +306,14 @@ match user_input:
         trials = int(input("Enter number of trials to be processed: "))
 
         """----------- ITERATE THROUGH EVERY PARTICIPANT WITH A PROGRESS BAR -----------"""
-        for participant in tqdm(range(part), desc="Processing Participants"):
+        for participant in tqdm(range(2, part), desc="Processing Participants"):
             path_zip = os.path.join(directory_participants, contents[participant])
 
             """----------- OPEN ZIP FILE -----------"""
             with (zipfile.ZipFile(path_zip, 'r') as zip_ref):
                 zip_contents = zip_ref.namelist()
 
-                for trial in tqdm(range(trials), desc=f"Participant [{participant + 1}] - Processing Trials"):
+                for trial in tqdm(range(2, trials), desc=f"Participant [{participant + 1}] - Processing Trials"):
 
                     # Get video files
                     video_files = [item for item in zip_contents if item.endswith('avi') and item.__contains__('gait')]
