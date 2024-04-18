@@ -6,15 +6,15 @@ import cv2
 NUMBER_PARTICIPANTS = 15
 NUMBER_TRIALS = 24
 
-participant = 5
-trial = 1
+participant = 15
+trial = 10
 
 path_xlsx = r'C:\Users\diman\PycharmProjects\dissertation\Trials\Trials_Sync_v2'
 
 for participant in range(participant - 1, NUMBER_PARTICIPANTS):
     for trial in range(trial - 1, NUMBER_TRIALS):
         directory = os.path.join(path_xlsx, f'Participant_{participant + 1}', f'Trial_{trial+1}')
-        csv_file = pd.read_csv(os.path.join(directory, f'Trial_{trial+1}.csv'))
+        csv_file = pd.read_csv(os.path.join(directory, f'Trial_{trial + 1}.csv'))
 
         values = csv_file.values.tolist()
         

@@ -7,8 +7,8 @@ import sys
 NUMBER_PARTICIPANTS = 15
 NUMBER_TRIALS = 24
 
-participant = 4
-trial = 24
+participant = 6
+trial = 15
 
 for participant in range(participant - 1, NUMBER_PARTICIPANTS):
     for trial in range(trial - 1, NUMBER_TRIALS):
@@ -34,7 +34,7 @@ for participant in range(participant - 1, NUMBER_PARTICIPANTS):
 
         for row in values:
             rgb_frames.append(row[1])
-            labels.append((row[2]))
+            labels.append(row[2])
 
         for i in range(len(labels) - 1):
             if labels[i] == -1 and labels[i + 1] == 0:
@@ -122,7 +122,7 @@ for participant in range(participant - 1, NUMBER_PARTICIPANTS):
             steps_list.append(steps)
 
             if rgb_frames[frame_index] > 280:
-                time = 15
+                time = 25
 
             # go to wherever frame in the video
             if cv2.waitKey(time) & 0xFF == ord('t'):
