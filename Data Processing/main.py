@@ -6,4 +6,4 @@ if __name__ == '__main__':
     VAL_PARTICIPANTS = ['02', '11']
 
     data = Dataset()
-    data.split_dataset(NUM_PARTICIPANTS, TEST_PARTICIPANTS, VAL_PARTICIPANTS)
+    data.SplitDataset(NUM_PARTICIPANTS, TEST_PARTICIPANTS, VAL_PARTICIPANTS)

@@ -6,10 +6,11 @@ from tqdm import tqdm
 import cv2
 
 
-def create_balanced_dataset():
+def CreateBalancedDataset():
     number_participants = 15
     number_trials = 24
     total_labels_df = pd.DataFrame(columns=['Video Path', 'Frames Indexes', 'Class'])
+
     num_frames_one = 0
     num_frames_n_one = 0
     num_frames_zero = 0
@@ -127,24 +128,24 @@ class Dataset:
         self.dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET'     # alterar para o dataset final (depois de balanceado)
         self.excel_name = 'RGB_labeling_30Hz_balanced_aligned.xlsx'                     # alterar para o dataset final (depois de balanceado)
 
-        self.train = []
+        self.treino = []
         self.val = []
-        self.test = []
+        self.teste = []
 
-    def split_dataset(self, num_participants, test_participants, val_participants):
+    def SplitDataset(self, num_participants, test_participants, val_participants):
         # df = create_balanced_dataset()
         dataset = pd.read_excel(os.path.join(self.dataset_path, self.excel_name))
-        my_data = dataset.values.tolist()
+        my_data = dataset.values.tolist()                                               # probably not needed
         path_labeling = r'C:\Users\diman\PycharmProjects\dissertation\Labeling'
 
         print(f'Train size: {(num_participants - len(test_participants) - len(val_participants))/num_participants}; '
               f'Val size: {len(val_participants) / num_participants}; '
               f'Test size: {len(test_participants) / num_participants}')
 
-        test_val_indexes = {'test': [], 'val': []}
+        test_val_indexes = {'teste': [], 'val': []}
         train_indexes = set(range(dataset.shape[0]))
 
-        for dataset_ids, name in zip([test_participants, val_participants], ['test', 'val']):
+        for dataset_ids, name in zip([test_participants, val_participants], ['teste', 'val']):
             for subj_id in sorted(dataset_ids):
                 subj_path_name = 'participant' + subj_id
                 indexes = [ind for ind in range(dataset.shape[0]) if subj_path_name in dataset.iloc[ind, 0]]
@@ -152,55 +153,58 @@ class Dataset:
                 train_indexes = train_indexes - set(indexes)
 
         train_indexes = sorted(train_indexes)
-        self.train = dataset.take(train_indexes)
-        self.test = dataset.take(test_val_indexes["test"])
+        self.treino = dataset.take(train_indexes)
+        self.teste = dataset.take(test_val_indexes["teste"])
         self.val = dataset.take(test_val_indexes["val"])
 
-        print('DF_test: ', self.test)
+        print('DF_test: ', self.teste)
         print('DF_val: ', self.val)
 
-        print(f'Total of rows in balanced dataset: {dataset.shape[0]}'
-              f'Number of rows in TRAIN: {self.train.shape[0]}\n'
+        print(f'Total of rows in balanced dataset: {dataset.shape[0]}\n'
+              f'Number of rows in TRAIN: {self.treino.shape[0]}\n'
               f'Number of rows in VAL: {self.val.shape[0]}\n'
-              f'Number of rows in TEST: {self.test.shape[0]}\n')
+              f'Number of rows in TEST: {self.teste.shape[0]}')
 
-        # Open the video file
-        all_indexes = {'train': train_indexes, 'val': test_val_indexes['val'], 'test': test_val_indexes['test']}
+        all_indexes = {'treino': train_indexes, 'val': test_val_indexes['val'], 'teste': test_val_indexes['teste']}
 
-        for dataset_index, name in zip(all_indexes.values(), ['train', 'val', 'test']):
-            for index in dataset_index:
+        for item in all_indexes.items():
+            count = 0
+            for index in item[1]:
                 folder = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\GAIT_VIDEOS'
-                path = my_data[index][0]
+                path = dataset.iloc[index]['Video Path']
                 cap = cv2.VideoCapture(os.path.join(folder, path))
 
                 if not cap.isOpened():
                     print("Error: Unable to open video.")
 
-                index_list = my_data[index][1].split()
+                index_list = dataset.iloc[index]['Frames Indexes'].split()
 
                 for i in index_list:
                     frame_index = int(re.sub('\D', '', i))
                     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
                     ret, frame = cap.read()
 
-                    if my_data[index][2] == 1:
-                        frame_dir = os.path.join(path_labeling, name, f'ones\{frame_index}.png')
+                    count += 1
+                    if dataset.iloc[index]['Class'] == 1:
+                        frame_dir = os.path.join(path_labeling, item[0], f'ones\{count}.png')
                         cv2.imwrite(frame_dir, frame)
-                        print(f'Image Saved: {frame_index}.png ; ones folder ; {name}')
-                    elif my_data[index][2] == -1:
-                        frame_dir = os.path.join(path_labeling, name, f'minus_ones\{frame_index}.png')
+                        print(f'Image Saved: {frame_index}.png ; ones folder ; {item[0]}')
+                    elif dataset.iloc[index]['Class'] == -1:
+                        frame_dir = os.path.join(path_labeling, item[0], f'minus_ones\{count}.png')
                         cv2.imwrite(frame_dir, frame)
-                        print(f'Image Saved: {frame_index}.png ; minus_ones folder ; {name}')
-                    elif my_data[index][2] == 0:
-                        frame_dir = os.path.join(path_labeling, name, f'zeros\{frame_index}.png')
+                        print(f'Image Saved: {frame_index}.png ; minus_ones folder ; {item[0]}')
+                    elif dataset.iloc[index]['Class'] == 0:
+                        frame_dir = os.path.join(path_labeling, item[0], f'zeros\{count}.png')
                         cv2.imwrite(frame_dir, frame)
-                        print(f'Image Saved: {frame_index}.png ; zeros folder ; {name}')
+                        print(f'Image Saved: {frame_index}.png ; zeros folder ; {item[0]}')
 
+                    print(f'{count}/135299 saved images.')
+                    print(f'{round((count / 135299) * 100)} % completed.')
                 # Release the video capture object and close windows
                 cap.release()
                 cv2.destroyAllWindows()
 
-            return self.train, self.val, self.test
+        return self.treino, self.val, self.teste
 
-        # def create_dataset(self):
+    # def create_dataset(self):
 
