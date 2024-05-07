@@ -7,6 +7,20 @@ import cv2
 import numpy as np
 
 
+def getFolders(directory, num):
+    contents = os.listdir(directory)
+    path = []
+
+    for folder_path, _, _ in os.walk(os.path.join(directory, contents[num])):
+        path.append(folder_path)
+
+    path = [item for item in path if 'Trial' in item]
+    path = sorted(path, key=lambda x: int(re.search(r'Trial_(\d+)', x).group(1)))
+    path = sorted(path, key=lambda x: int(re.search(r'Participant_(\d+)', x).group(1)))
+
+    return path
+
+
 class Dataset:
     def __init__(self):
         self.dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET'
@@ -27,6 +41,16 @@ class Dataset:
         num_frames_zero = 0
 
         num_total_labels = 0
+
+        train_num = 0
+        val_num = 1
+        test_num = 2
+
+        directory = r'D:\Labeling_v2'
+
+        train_path = getFolders(directory, train_num)
+        val_path = getFolders(directory, val_num)
+        test_path = getFolders(directory, test_num)
 
         for participant in tqdm(range(number_participants), desc="Processing Participants"):
             for trial in tqdm(range(number_trials), desc=f"Participant [{participant + 1}] - Processing Trials"):
@@ -63,7 +87,8 @@ class Dataset:
 
                 num_frames_start = num_frames_stop = 30
 
-                total_trial = start_phase[(len(start_phase) - 1) - num_frames_start:] + gait_phase + stop_phase[:num_frames_stop]
+                total_trial = start_phase[(len(start_phase) - 1) - num_frames_start:] + gait_phase + stop_phase[
+                                                                                                     :num_frames_stop]
 
                 for item in total_trial:
                     if item[1] == 1:
@@ -74,9 +99,6 @@ class Dataset:
                         num_frames_zero += 1
 
                 num_total_labels += len(total_trial)
-
-                directory = r'D:\Labeling_v2'
-                list_dir = os.listdir(directory)
 
                 # Sliding Window Method
                 window_length = 2
@@ -89,9 +111,28 @@ class Dataset:
                     indexes_df = [[indexes[0][0], indexes[1][0]]]
                     next_label = indexes[1][1]
 
+                    part_trial = f'Participant_{participant + 1}\\Trial_{trial + 1}'
+
+                    current_path = ''
+
+                    for path in train_path:
+                        if part_trial in path:
+                            current_path = path
+                            break  # Exit the loop once the path is found
+
+                    for path in val_path:
+                        if part_trial in path:
+                            current_path = path
+                            break  # Exit the loop once the path is found
+
+                    for path in test_path:
+                        if part_trial in path:
+                            current_path = path
+                            break  # Exit the loop once the path is found
+
                     # Create DataFrame
                     df = pd.DataFrame(
-                        {'Frames Path': sorted_videos[trial],
+                        {'Frames Path': current_path,
                          'Frames Indexes': indexes_df,
                          'Class': next_label})
 
@@ -102,15 +143,15 @@ class Dataset:
                     end_seq += 1
 
         total_labels_df.to_excel(
-            r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v2.xlsx',
+            r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v3.xlsx',
             index=False)
 
         # Get number of frames
-        with open(r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\dataset_frames_count_v2.txt', 'w') as myFile:
-            myFile.write(f"Number of frames '1': {num_frames_one}\n")
-            myFile.write(f"Number of frames '-1': {num_frames_n_one}\n")
-            myFile.write(f"Number of frames '0': {num_frames_zero}\n")
-            myFile.write(f"Total number of frames: {num_total_labels}\n")
+        # with open(r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\dataset_frames_count_v2.txt', 'w') as myFile:
+        # myFile.write(f"Number of frames '1': {num_frames_one}\n")
+        # myFile.write(f"Number of frames '-1': {num_frames_n_one}\n")
+        # myFile.write(f"Number of frames '0': {num_frames_zero}\n")
+        # myFile.write(f"Total number of frames: {num_total_labels}\n")
 
         return total_labels_df
 
@@ -182,10 +223,10 @@ class Dataset:
               f'Val size: {len(val_participants) / num_participants}; '
               f'Test size: {len(test_participants) / num_participants}')
 
-        test_val_indexes = {'teste': [], 'val': []}
+        test_val_indexes = {'test': [], 'val': []}
         train_indexes = set(range(dataset.shape[0]))
 
-        for dataset_ids, name in zip([test_participants, val_participants], ['teste', 'val']):
+        for dataset_ids, name in zip([test_participants, val_participants], ['test', 'val']):
             for subj_id in sorted(dataset_ids):
                 subj_path_name = 'participant' + subj_id
                 indexes = [ind for ind in range(dataset.shape[0]) if subj_path_name in dataset.iloc[ind, 0]]
@@ -194,7 +235,7 @@ class Dataset:
 
         train_indexes = sorted(train_indexes)
         self.train = dataset.take(train_indexes)
-        self.test = dataset.take(test_val_indexes["teste"])
+        self.test = dataset.take(test_val_indexes["test"])
         self.val = dataset.take(test_val_indexes["val"])
 
         print('DF_test: ', self.test)
@@ -221,7 +262,8 @@ class Dataset:
                                                  f'Participant_{participant}',
                                                  f'Trial_{trial + 1}'))
 
-        all_indexes = {'train': train_indexes, 'val': test_val_indexes['val'], 'test': test_val_indexes['teste']}
+        all_indexes = {'train': train_indexes, 'val': test_val_indexes['val'], 'test': test_val_indexes['test']}
+
         for item in all_indexes.items():
             indexes = item[1]
             count = 0
@@ -229,19 +271,22 @@ class Dataset:
             for participants in folder_part_df.items():
                 for participant in participants[1]:
                     for trial in range(24):
+                        print(f'Processing Trial {trial + 1} - Participant {participant} -> {item[0]} folder')
+
                         trial_list = []
                         first = True
                         trial_folder = f'Trial_{trial + 1}'
                         for index in indexes:
-                            if (f'participant0{participant}\\' in dataset.iloc[index, 0] or f'participant{participant}\\' in dataset.iloc[index, 0]) and trial_folder+'\\' in dataset.iloc[index, 0]:
+                            if (f'participant0{participant}\\' in dataset.iloc[
+                                index, 0] or f'participant{participant}\\' in dataset.iloc[
+                                    index, 0]) and trial_folder + '\\' in dataset.iloc[index, 0]:
                                 trial_list.append(index)
 
                         # Iterate over folders and sub-folders to find .avi files
                         path_videos = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\GAIT_VIDEOS'
                         contents = os.listdir(path_videos)
                         videos = []
-                        for folder_path, _, files in os.walk(
-                                os.path.join(path_videos, contents[participant - 1])):
+                        for folder_path, _, files in os.walk(os.path.join(path_videos, contents[participant - 1])):
                             # Check if any .avi files exist in the current folder
                             for file in files:
                                 if file.endswith('.avi'):
@@ -282,8 +327,8 @@ class Dataset:
                                                              f'Trial_{trial + 1}',
                                                              f'{count}.jpg')
                                     cv2.imwrite(frame_dir, resized_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
-
-                                    print(f'Image Saved: {frame_index}.png ; {trial + 1}/24 Trials - Participant {participant} ; {item[0]} folder')
+                                    print(
+                                        f'Image Saved: {frame_index}.png ; {trial + 1}/24 Trials - Participant {participant} ; {item[0]} folder')
                                     print(f'{count}/193252 saved images.')
                                     print(f'{round((count / 193252) * 100)} % completed.')
 
@@ -310,8 +355,6 @@ class Dataset:
                                 cv2.imwrite(frame_dir, resized_frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
                                 print(
                                     f'Image Saved: {frame_index}.png ; {trial + 1}/24 Trials - Participant {participant} ; {item[0]} folder')
-
-                                print(f'{count}/{len(train_indexes)}')
                                 print(f'{count}/193252 saved images.')
                                 print(f'{round((count / 193252) * 100)} % completed.')
 
@@ -319,5 +362,3 @@ class Dataset:
                         cap.release()
 
         return self.train, self.val, self.test
-
-
