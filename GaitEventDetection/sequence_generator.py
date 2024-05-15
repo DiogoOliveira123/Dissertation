@@ -1,4 +1,6 @@
 import os
+import random
+
 from keras.utils import Sequence
 import numpy as np
 import cv2
@@ -51,51 +53,58 @@ class ImageDataGenerator:
         # CORRECT IMAGE SHAPE IF NEEDED
         if image.shape != self.input_shape:
             cv2.resize(image, (correct_height, correct_width))
+
         return image
 
     def image_pre_processing(self, image):
         image = self.image_check_shape(image)
-        return cv2.cvtColor(image, cv2.COLOR_RGB2BGR) / 255       # assuming that each image pyxel have max size of 8 bits
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) / 255
 
-    def image_rotation(self, image, rotation_range):
+        return image       # assuming that each image pixel has max size of 8 bits
+
+    def image_rotation(self, image):
         image = self.image_check_shape(image)
-        self.rotation_range = rotation_range
+        rot_range = random.randint(self.rotation_range[0], self.rotation_range[1])
+        image = imutils.rotate_bound(image, rot_range)
 
-        return imutils.rotate_bound(image, self.rotation_range)
+        return image
 
     def image_HSV(self, image):
         image = self.image_check_shape(image)
 
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv_image)                          # h = hue (contrast); s = saturation; v = value (brightness)
+        h, s, v = cv2.split(hsv_image)                                            # h = hue (contrast); s = saturation; v = value (brightness)
+        brightness = random.randint(self.brightness_range[0], self.brightness_range[1])
+        saturation = random.randint(self.saturation_range[0], self.saturation_range[1])
+        contrast = random.randint(self.contrast_range[0], self.contrast_range[1])
 
-        if self.brightness_range != 0:
-            if self.brightness_range >= 0:                                        # => increase brightness
-                pixel_value_limit = 1 - self.brightness_range / 255               # pixel limit value (assuming 8 bit)
+        if brightness != 0:
+            if brightness >= 0:                                                   # => increase brightness
+                pixel_value_limit = 1 - brightness / 255                          # pixel limit value (assuming 8 bit)
                 v[v > pixel_value_limit] = 1                                      # set every pixel that's greater than the limit to the max (8 bit = 255)
-                v[v <= pixel_value_limit] += self.brightness_range / 255          # add brightness_range to every pixel that's under the limit
+                v[v <= pixel_value_limit] += brightness / 255                     # add brightness_range to every pixel that's under the limit
 
             else:                                                                 # the same, but if brightness_range is negative => decrease brightness.
-                pixel_value_limit = abs(self.brightness_range) / 255
+                pixel_value_limit = abs(brightness) / 255
                 v[v < pixel_value_limit] = 0
-                v[v >= pixel_value_limit] -= abs(self.brightness_range) / 255
+                v[v >= pixel_value_limit] -= abs(brightness) / 255
 
-        elif self.saturation_range != 0:
-            if self.saturation_range >= 0:                                        # => increase saturation
-                pixel_value_limit = 1 - self.saturation_range / 255               # pixel limit value (assuming 8 bit)
+        elif saturation != 0:
+            if saturation >= 0:                                                   # => increase saturation
+                pixel_value_limit = 1 - saturation / 255                          # pixel limit value (assuming 8 bit)
                 s[s > pixel_value_limit] = 1                                      # set every pixel that's greater than the limit to the max (8 bit = 255)
-                s[s <= pixel_value_limit] += self.saturation_range / 255          # add brightness_range to every pixel that's under the limit
+                s[s <= pixel_value_limit] += saturation / 255                     # add brightness_range to every pixel that's under the limit
 
             else:                                                                 # the same, but if brightness_range is negative => decrease saturation.
-                pixel_value_limit = abs(self.saturation_range) / 255
+                pixel_value_limit = abs(saturation) / 255
                 s[s < pixel_value_limit] = 0
-                s[s >= pixel_value_limit] -= abs(self.saturation_range) / 255
+                s[s >= pixel_value_limit] -= abs(saturation) / 255
 
         image = cv2.merge((h, s, v))
         image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
 
-        if self.contrast_range != 0:
-            image = image * (self.contrast_range/127 + 1) - self.contrast_range + self.brightness_range
+        if contrast != 0:
+            image = image * (contrast/127 + 1) - contrast + contrast
             image = np.clip(image, 0, 1)
             image = np.uint(image)
 
@@ -107,22 +116,31 @@ class ImageDataGenerator:
 
         if self.gaussian_blur:
             image = image.copy()
-            image = cv2.GaussianBlur(image, kernel_size)
+            image = cv2.GaussianBlur(image, kernel_size, 0)
 
         return image
 
     def image_zoom(self, image):
         image = self.image_check_shape(image)
+        zoom = random.randint(self.zoom_range[0], self.zoom_range[1])
 
         height, width = self.input_shape[2], self.input_shape[3]
 
-        new_height, new_width = int(height * self.zoom_range), int(width * self.zoom_range)
+        new_height, new_width = int(height * zoom), int(width * zoom)
 
         diff_height, diff_width = (new_height - height) / 2, (new_width - width) / 2
 
         cropped_image = image[diff_height:height-diff_height, diff_width: width-diff_width]
 
         image = cv2.resize(cropped_image, (width, height), interpolation=cv2.INTER_LINEAR)
+
+        return image
+
+    def image_shift(self, image):
+        image = self.image_check_shape(image)
+        shift_width = random.randint(self.width_shift_range[0], self.width_shift_range[1])
+        shift_height = random.randint(self.height_shift_range[0], self.height_shift_range[1])
+        image = imutils.translate(image, shift_width, shift_height)
 
         return image
 
