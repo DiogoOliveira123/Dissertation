@@ -7,128 +7,175 @@ import cv2
 import pandas as pd
 import re
 from sklearn.preprocessing import OneHotEncoder
-from models import DLModels
 import imutils
-from contrast_augm import contrast_shift, gaussBlur
 
 
 class ImageDataGenerator:
     def __init__(self,
-                 input_shape,
-                 samplewise_center,
-                 samplewise_std_normalization,
-                 featurewise_center,
-                 featurewise_std_normalization,
                  rotation_range,                            # done
-                 fill_mode,
-                 width_shift_range,
-                 height_shift_range,
+                 width_shift_range,                         # done
+                 height_shift_range,                        # done
                  brightness_range,                          # done
                  contrast_range,                            # done
                  saturation_range,                          # done
                  zoom_range,                                # done
-                 preprocessing_function,                    # done
-                 image_check_shape,                         # done
+                 pre_processing,                            # done
+                 check_shape,                               # done
                  gaussian_blur):                            # done
 
-        self.input_shape = input_shape
-        self.samplewise_center = samplewise_center
-        self.samplewise_std_normalization = samplewise_std_normalization
-        self.featurewise_center = featurewise_center
-        self.featurewise_std_center = featurewise_std_normalization
         self.rotation_range = rotation_range
-        self.fill_mode = fill_mode
         self.width_shift_range = width_shift_range
         self.height_shift_range = height_shift_range
         self.brightness_range = brightness_range
         self.contrast_range = contrast_range
         self.saturation_range = saturation_range
         self.zoom_range = zoom_range
-        self.preprocessing_function = preprocessing_function
-        self.image_check_shape = image_check_shape
+        self.pre_processing = pre_processing
+        self.check_shape = check_shape
         self.gaussian_blur = gaussian_blur
 
-    def image_correct_shape(self, image):
+        if len(rotation_range) != 2:
+            raise ValueError("rotation_range expects a list of length 2")
+
+        if len(width_shift_range) != 2:
+            raise ValueError("width_shift_range expects a list of length 2")
+
+        if len(height_shift_range) != 2:
+            raise ValueError("height_shift_range expects a list of length 2")
+
+        if len(brightness_range) != 2:
+            raise ValueError("brightness_range expects a list of length 2")
+
+        if len(contrast_range) != 2:
+            raise ValueError("contrast_range expects a list of length 2")
+
+        if len(saturation_range) != 2:
+            raise ValueError("saturation_range expects a list of length 2")
+
+        if len(zoom_range) != 2:
+            raise ValueError("zoom_range expects a list of length 2")
+
+    def image_check_shape(self, image):
+        """
+        Check and correct shape, if needed.
+        :param image: image
+        :return: corrected image
+        """
         correct_height = correct_width = 224
-        # CORRECT IMAGE SHAPE IF NEEDED
-        if image.shape != self.input_shape:
-            cv2.resize(image, (correct_height, correct_width))
+        if self.check_shape and image.shape != (224, 224, 3):
+            # CORRECT IMAGE SHAPE IF NEEDED
+            image = cv2.resize(image, (correct_width, correct_height))
 
         return image
 
     def image_pre_processing(self, image):
-        image = self.image_check_shape(image)
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) / 255
+        """
+        Image preprocessing with RGB2BGR and normalization (/255).
+        :param image: image
+        :return: preprocessed image
+        """
+        if self.pre_processing:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) / 255
+            image = image.astype(np.float32)  # Ensure image is float32
 
         return image       # assuming that each image pixel has max size of 8 bits
 
     def image_rotation(self, image):
-        image = self.image_check_shape(image)
-        rot_range = random.randint(self.rotation_range[0], self.rotation_range[1])
+        """
+        Image rotation, randomly, within a given range (in degrees).
+        :param image: image
+        :return: rotated image
+        """
+
+        # ELIMINATE THE CHANCE OF RETURNING 0
+        rot_range = 0
+        while rot_range == 0:
+            rot_range = random.randint(self.rotation_range[0], self.rotation_range[1])
+
         image = imutils.rotate_bound(image, rot_range)
+
+        image = self.image_check_shape(image)
 
         return image
 
     def image_HSV(self, image):
-        image = self.image_check_shape(image)
+        """
+        Image change in brightness, saturation and contrast, randomly, within a certain range.
+        :param image: image
+        :return: saturated, brightened and contrasted image
+        """
 
         hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv_image)                                            # h = hue (contrast); s = saturation; v = value (brightness)
-        brightness = random.randint(self.brightness_range[0], self.brightness_range[1])
-        saturation = random.randint(self.saturation_range[0], self.saturation_range[1])
-        contrast = random.randint(self.contrast_range[0], self.contrast_range[1])
+        h, s, v = cv2.split(hsv_image)
+        brightness = 0
+        saturation = 0
+        contrast = 0
 
-        if brightness != 0:
-            if brightness >= 0:                                                   # => increase brightness
-                pixel_value_limit = 1 - brightness / 255                          # pixel limit value (assuming 8 bit)
-                v[v > pixel_value_limit] = 1                                      # set every pixel that's greater than the limit to the max (8 bit = 255)
-                v[v <= pixel_value_limit] += brightness / 255                     # add brightness_range to every pixel that's under the limit
+        # ELIMINATE THE CHANCE OF RETURNING 0
+        while brightness == 0:
+            brightness = random.uniform(self.brightness_range[0], self.brightness_range[1])
+        while saturation == 0:
+            saturation = random.uniform(self.saturation_range[0], self.saturation_range[1])
+        while contrast == 0:
+            contrast = random.uniform(self.contrast_range[0], self.contrast_range[1])
 
-            else:                                                                 # the same, but if brightness_range is negative => decrease brightness.
-                pixel_value_limit = abs(brightness) / 255
-                v[v < pixel_value_limit] = 0
-                v[v >= pixel_value_limit] -= abs(brightness) / 255
+        if brightness:
+            v = np.float64(v)
+            if brightness >= 0:
+                v[v <= 1 - brightness / 255] += brightness / 255
+            else:
+                v[v >= abs(brightness) / 255] -= abs(brightness) / 255
 
-        elif saturation != 0:
-            if saturation >= 0:                                                   # => increase saturation
-                pixel_value_limit = 1 - saturation / 255                          # pixel limit value (assuming 8 bit)
-                s[s > pixel_value_limit] = 1                                      # set every pixel that's greater than the limit to the max (8 bit = 255)
-                s[s <= pixel_value_limit] += saturation / 255                     # add brightness_range to every pixel that's under the limit
+        if saturation:
+            s = np.float64(s)
+            if saturation >= 0:
+                s[s <= 1 - saturation / 255] += saturation / 255
+            else:
+                s[s >= abs(saturation) / 255] -= abs(saturation) / 255
 
-            else:                                                                 # the same, but if brightness_range is negative => decrease saturation.
-                pixel_value_limit = abs(saturation) / 255
-                s[s < pixel_value_limit] = 0
-                s[s >= pixel_value_limit] -= abs(saturation) / 255
+        if contrast:
+            v = np.float64(v)
+            v = ((v - 0.5) * contrast + 0.5)
 
-        image = cv2.merge((h, s, v))
-        image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
+        v = np.clip(v, 0, 1)
+        s = np.clip(s, 0, 1)
 
-        if contrast != 0:
-            image = image * (contrast/127 + 1) - contrast + contrast
-            image = np.clip(image, 0, 1)
-            image = np.uint(image)
+        image_hsv = cv2.merge((h, s, v))
+        image = cv2.cvtColor(image_hsv, cv2.COLOR_HSV2BGR)
 
         return image
 
     def image_gaussian_blur(self, image):
-        image = self.image_check_shape(image)
-        kernel_size = 9
+        """
+        Image application of blur, with a kernel size of 9.
+        :param image: image
+        :return: blurred image
+        """
+        kernel_size = random.randrange(3, 9, 2)
 
         if self.gaussian_blur:
             image = image.copy()
-            image = cv2.GaussianBlur(image, kernel_size, 0)
+            image = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
 
         return image
 
     def image_zoom(self, image):
-        image = self.image_check_shape(image)
-        zoom = random.randint(self.zoom_range[0], self.zoom_range[1])
+        """
+        Image zoom, randomly, within a given range (zoom factor).
+        :param image: image
+        :return: zoomed image
+        """
 
-        height, width = self.input_shape[2], self.input_shape[3]
+        zoom = 0
+        # ELIMINATE THE CHANCE OF RETURNING 0
+        while zoom == 0:
+            zoom = random.uniform(self.zoom_range[0], self.zoom_range[1])
+
+        height = width = 224
 
         new_height, new_width = int(height * zoom), int(width * zoom)
 
-        diff_height, diff_width = (new_height - height) / 2, (new_width - width) / 2
+        diff_height, diff_width = int(abs(new_height - height) / 2), int(abs(new_width - width) / 2)
 
         cropped_image = image[diff_height:height-diff_height, diff_width: width-diff_width]
 
@@ -137,11 +184,46 @@ class ImageDataGenerator:
         return image
 
     def image_shift(self, image):
-        image = self.image_check_shape(image)
-        shift_width = random.randint(self.width_shift_range[0], self.width_shift_range[1])
-        shift_height = random.randint(self.height_shift_range[0], self.height_shift_range[1])
+        """
+        Image shift in height and width, randomly, withing a given range (in pixels).
+        :param image: image
+        :return: shifted image
+        """
+
+        shift_width = 0
+        shift_height = 0
+        # ELIMINATE THE CHANCE OF RETURNING 0
+        while shift_width == 0:
+            shift_width = random.randint(self.width_shift_range[0], self.width_shift_range[1])
+
+        while shift_height == 0:
+            shift_height = random.randint(self.height_shift_range[0], self.height_shift_range[1])
+
         image = imutils.translate(image, shift_width, shift_height)
 
+        return image
+
+    def apply_random_augmentation(self, image, probability):
+        """
+        Apply random image data augmentation, given a probability.
+        :param image: image to be augmented.
+        :param probability: probability to get augmented (0 <= probability <= 1).
+        :return: augmented image.
+        """
+        if random.random() < probability:
+            image = self.image_rotation(image)
+        if random.random() < probability:
+            image = self.image_shift(image)
+        if random.random() < probability:
+            image = self.image_HSV(image)
+        if random.random() < probability:
+            image = self.image_zoom(image)
+        if random.random() < probability:
+            image = self.image_gaussian_blur(image)
+        if self.pre_processing:
+            image = self.image_pre_processing(image)
+        if self.check_shape:
+            image = self.image_check_shape(image)
         return image
 
 
@@ -150,15 +232,16 @@ class SequenceDataGenerator(Sequence):
         self.dataframe = dataframe
         self.batch_size = batch_size
         self.n = len(self.dataframe)
-        self.contrast_gauss_normalize = DLModels.contrast_gauss_normalize
-        self.load_and_preprocess_image = DLModels.load_and_preprocess_image
-        self.aug_params = {"samplewise_center": False, "samplewise_std_normalization": False,
-                           "featurewise_center": False, "featurewise_std_normalization": False,
-                           "rotation_range": 0, "fill_mode": 'constant', "width_shift_range": 15.0,
-                           "height_shift_range": 15.0, "brightness_range": [0.75, 1.25], "zoom_range": 0.2,
-                           "preprocessing_function_train": self.contrast_gauss_normalize,
-                           "preprocessing_function": self.load_and_preprocess_image,
-                           "contrast": True, "blur": True}
+        self.aug_params = {"rotation_range": [-25, 25],
+                           "width_shift_range": [-30, 30],
+                           "height_shift_range": [-30, 30],
+                           "brightness_range": [-50, 50],
+                           "contrast_range": [0.75, 2],
+                           "saturation_range": [-50, 50],
+                           "zoom_range": [1.10, 1.25],
+                           "preprocessing_function": True,
+                           "check_shape": True,
+                           "gaussian_blur": True}
 
     @staticmethod
     def splitTrainValTest(csv_file):
@@ -209,16 +292,27 @@ class SequenceDataGenerator(Sequence):
 
         for sequence in path_images:
             images_sequence = [cv2.imread(image) for image in sequence]
-            # Perform additional preprocessing if needed, such as normalization
-            batch_images_proc = [ImageDataGenerator.image_pre_processing(image) for image in images_sequence]
-            batch_images.append(batch_images_proc)
+            batch_images.append(images_sequence)
 
-        # FAZER: ADICIONAR DATA AUGMENTATION AQUI DENTRO.
-        #    1º: VER EM ARTIGOS QUAL A PERCENTAGEM DE IMAGENS DO DATASET QUE COSTUMAM SER AUGMENTED.
-        #    2º: FAZER O MEU PRÓPRIO IMAGEDATAGENERATOR => COM BASE NAS FUNÇÕES DA IMAGEDATAGENERATOR, CRIAR E
-        #                                                  APLICAR MÉTODOS DE DATA AUGMENTATION.
+        train_image_gen = ImageDataGenerator(rotation_range=self.aug_params["rotation_range"],
+                                             width_shift_range=self.aug_params["width_shift_range"],
+                                             height_shift_range=self.aug_params["height_shift_range"],
+                                             brightness_range=self.aug_params["brightness_range"],
+                                             contrast_range=self.aug_params["contrast_range"],
+                                             saturation_range=self.aug_params["saturation_range"],
+                                             zoom_range=self.aug_params["zoom_range"],
+                                             pre_processing=self.aug_params["preprocessing_function"],
+                                             check_shape=self.aug_params["check_shape"],
+                                             gaussian_blur=self.aug_params["gaussian_blur"])
 
-        batch_images = np.array(batch_images)               # shape: (64, 4, 224, 224, 3)
+        augmented_images = []
+        for sequence in batch_images:
+            augmented_sequence = [train_image_gen.apply_random_augmentation(image, 0.5) for image in sequence]
+            augmented_images.append(augmented_sequence)
+
+            # CHECK ERROR IN image_HSV (MAYBE DUE TO DATA TYPE)
+
+        batch_images = np.array(augmented_images)               # shape: (64, 4, 224, 224, 3)
 
         # Creating a numpy array from the list
         batch_labels = np.array(batch_labels).reshape(-1, 1)
@@ -237,3 +331,7 @@ class SequenceDataGenerator(Sequence):
         [img1   ,   img2], [img2, img3] ... = 64 imgs
           ^          ^
     (224, 224, 3) (224, 224, 3)"""
+
+    """Random Data Augmentation Implementation:
+       -> Apply 60% / 40% of normal data and augmented data, respectively.
+       -> So, """
