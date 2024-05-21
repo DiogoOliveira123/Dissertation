@@ -1,13 +1,14 @@
 import os
 import random
-
-from keras.utils import Sequence
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 import pandas as pd
 import re
-from sklearn.preprocessing import OneHotEncoder
 import imutils
+
+from keras.utils import Sequence
+from sklearn.preprocessing import OneHotEncoder
 
 
 class ImageDataGenerator:
@@ -75,8 +76,8 @@ class ImageDataGenerator:
         :return: preprocessed image
         """
         if self.pre_processing:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) / 255
-            image = image.astype(np.float32)  # Ensure image is float32
+            image = (image - np.min(image)) / (np.max(image) - np.min(image))   # normalize to values between 0 and 1
+            image = image.astype(np.float32)  # Ensure image is float32, for HSV processing
 
         return image       # assuming that each image pixel has max size of 8 bits
 
@@ -105,43 +106,49 @@ class ImageDataGenerator:
         :return: saturated, brightened and contrasted image
         """
 
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        if self.pre_processing:
+            image = self.image_pre_processing(image)
+
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
         h, s, v = cv2.split(hsv_image)
         brightness = 0
         saturation = 0
         contrast = 0
 
-        # ELIMINATE THE CHANCE OF RETURNING 0
-        while brightness == 0:
-            brightness = random.uniform(self.brightness_range[0], self.brightness_range[1])
-        while saturation == 0:
-            saturation = random.uniform(self.saturation_range[0], self.saturation_range[1])
-        while contrast == 0:
-            contrast = random.uniform(self.contrast_range[0], self.contrast_range[1])
+        random_choice = random.choice(list(range(3)))
 
-        if brightness:
-            v = np.float64(v)
-            if brightness >= 0:
-                v[v <= 1 - brightness / 255] += brightness / 255
-            else:
-                v[v >= abs(brightness) / 255] -= abs(brightness) / 255
+        if random_choice == 0:
+            # ELIMINATE THE CHANCE OF RETURNING 0
+            while brightness == 0:
+                brightness = random.uniform(self.brightness_range[0], self.brightness_range[1])
+            if brightness:
+                if brightness >= 0:
+                    v[v <= 1 - brightness / 255] += brightness / 255
+                else:
+                    v[v >= abs(brightness) / 255] -= abs(brightness) / 255
 
-        if saturation:
-            s = np.float64(s)
-            if saturation >= 0:
-                s[s <= 1 - saturation / 255] += saturation / 255
-            else:
-                s[s >= abs(saturation) / 255] -= abs(saturation) / 255
+        elif random_choice == 1:
+            # ELIMINATE THE CHANCE OF RETURNING 0
+            while saturation == 0:
+                saturation = random.uniform(self.saturation_range[0], self.saturation_range[1])
+            if saturation:
+                if saturation >= 0:
+                    s[s <= 1 - saturation / 255] += saturation / 255
+                else:
+                    s[s >= abs(saturation) / 255] -= abs(saturation) / 255
 
-        if contrast:
-            v = np.float64(v)
-            v = ((v - 0.5) * contrast + 0.5)
+        else:
+            # ELIMINATE THE CHANCE OF RETURNING 0
+            while contrast == 0:
+                contrast = random.uniform(self.contrast_range[0], self.contrast_range[1])
+            if contrast:
+                v = ((v - 0.5) * contrast + 0.5)
 
         v = np.clip(v, 0, 1)
         s = np.clip(s, 0, 1)
 
         image_hsv = cv2.merge((h, s, v))
-        image = cv2.cvtColor(image_hsv, cv2.COLOR_HSV2BGR)
+        image = cv2.cvtColor(image_hsv, cv2.COLOR_HSV2RGB)
 
         return image
 
@@ -203,25 +210,30 @@ class ImageDataGenerator:
 
         return image
 
-    def apply_random_augmentation(self, image, probability):
+    def apply_random_augmentation(self, image, num_aug_techniques):
         """
-        Apply random image data augmentation, given a probability.
+        Apply a single image data augmentation technique.
         :param image: image to be augmented.
-        :param probability: probability to get augmented (0 <= probability <= 1).
+        :param num_aug_techniques: number of augmentation techniques available.
         :return: augmented image.
         """
-        if random.random() < probability:
+        random_choice = list(range(num_aug_techniques))
+
+        if random.choice(random_choice) == 0:
             image = self.image_rotation(image)
-        if random.random() < probability:
+            print('Image Rotation Technique applied!')
+        elif random.choice(random_choice) == 1:
             image = self.image_shift(image)
-        if random.random() < probability:
+            print('Image Shift Technique applied!')
+        elif random.choice(random_choice) == 2:
             image = self.image_HSV(image)
-        if random.random() < probability:
+            print('Image HSV Technique applied!')
+        elif random.choice(random_choice) == 3:
             image = self.image_zoom(image)
-        if random.random() < probability:
+            print('Image Zoom Technique applied!')
+        elif random.choice(random_choice) == 4:
             image = self.image_gaussian_blur(image)
-        if self.pre_processing:
-            image = self.image_pre_processing(image)
+            print('Image Gaussian Blur Technique applied!')
         if self.check_shape:
             image = self.image_check_shape(image)
         return image
@@ -239,7 +251,7 @@ class SequenceDataGenerator(Sequence):
                            "contrast_range": [0.75, 2],
                            "saturation_range": [-50, 50],
                            "zoom_range": [1.10, 1.25],
-                           "preprocessing_function": True,
+                           "preprocessing_function": True,          # needs to be True to image_HSV work
                            "check_shape": True,
                            "gaussian_blur": True}
 
@@ -284,9 +296,9 @@ class SequenceDataGenerator(Sequence):
 
         for row in batch_rows_df.index:
             path_sequence = []
-            for idx in batch_rows_df.loc[row, 'Frames Indexes'].split():
-                idx = int(re.sub('\D', '', idx))
-                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(idx)}.jpg')
+            for frame_idx in batch_rows_df.loc[row, 'Frames Indexes'].split():
+                frame_idx = int(re.sub('\D', '', frame_idx))
+                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(frame_idx)}.jpg')
                 path_sequence.append(index_path)
             path_images.append(path_sequence)
 
@@ -304,15 +316,24 @@ class SequenceDataGenerator(Sequence):
                                              pre_processing=self.aug_params["preprocessing_function"],
                                              check_shape=self.aug_params["check_shape"],
                                              gaussian_blur=self.aug_params["gaussian_blur"])
-
+        plot_sequence = False
         augmented_images = []
         for sequence in batch_images:
-            augmented_sequence = [train_image_gen.apply_random_augmentation(image, 0.5) for image in sequence]
+            augmented_sequence = [train_image_gen.apply_random_augmentation(image, 5) for image in sequence]
+            if plot_sequence:
+                f, axarr = plt.subplots(1, 4)
+                for i in range(4):
+                    axarr[i].imshow(augmented_sequence[i])
+                plt.close()
+            print('---------------------------------')
+
             augmented_images.append(augmented_sequence)
 
-            # CHECK ERROR IN image_HSV (MAYBE DUE TO DATA TYPE)
-
         batch_images = np.array(augmented_images)               # shape: (64, 4, 224, 224, 3)
+        """count = 0
+        for image in batch_images:
+            count += 1
+            cv2.imwrite(f'D:\TEST_BATCH_IMAGES\{count}.jpg', image)"""
 
         # Creating a numpy array from the list
         batch_labels = np.array(batch_labels).reshape(-1, 1)
@@ -324,14 +345,17 @@ class SequenceDataGenerator(Sequence):
 
         return batch_images, batch_labels
 
-    """193251 seqs / 64 = 3019.546874 ~ 3020 batch (grupos) de 64 batch size (tamanho dos grupos)
-                           ^
-                    3019 * 64 + 35 seqs
+    """
+    .) Sequence Data Generator:
+    -> 192172 seqs / 64 = 3002.6875 ~ 3003 batch de 64 batch size
+                              ^
+                    3002 * 64 + 44 seqs
 
-        [img1   ,   img2], [img2, img3] ... = 64 imgs
+        [img1   ,   img2   ,   img3   ,   img4], [img1   ,   img2   ,   img3   ,   img4], ... = 64 sequences
           ^          ^
-    (224, 224, 3) (224, 224, 3)"""
+    (224, 224, 3)(224, 224, 3)
+        |_______________________________________|______________________________________|
+                     Sequence 1                               Sequence 2
 
-    """Random Data Augmentation Implementation:
-       -> Apply 60% / 40% of normal data and augmented data, respectively.
-       -> So, """
+    .) Random Data Augmentation Implementation:
+    -> Apply 70% / 30% of normal data and augmented data, respectively."""
