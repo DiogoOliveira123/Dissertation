@@ -44,13 +44,13 @@ class ImageDataGenerator:
         if len(height_shift_range) != 2:
             raise ValueError("height_shift_range expects a list of length 2")
 
-        if len(brightness_range) != 2:
+        if len(brightness_range) != 6:
             raise ValueError("brightness_range expects a list of length 2")
 
-        if len(contrast_range) != 2:
+        if len(contrast_range) != 6:
             raise ValueError("contrast_range expects a list of length 2")
 
-        if len(saturation_range) != 2:
+        if len(saturation_range) != 6:
             raise ValueError("saturation_range expects a list of length 2")
 
         if len(zoom_range) != 2:
@@ -95,7 +95,7 @@ class ImageDataGenerator:
 
         image = imutils.rotate_bound(image, rot_range)
 
-        image = self.image_check_shape(image)
+        image = np.uint8(image)
 
         return image
 
@@ -111,36 +111,35 @@ class ImageDataGenerator:
 
         hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
         h, s, v = cv2.split(hsv_image)
-        brightness = 0
-        saturation = 0
-        contrast = 0
+        brightness, saturation, contrast = 0, 0, 0
 
         random_choice = random.choice(list(range(3)))
+        random_choice = 0
 
         if random_choice == 0:
             # ELIMINATE THE CHANCE OF RETURNING 0
             while brightness == 0:
-                brightness = random.uniform(self.brightness_range[0], self.brightness_range[1])
+                brightness = random.choice(self.brightness_range) / 255
             if brightness:
                 if brightness >= 0:
-                    v[v <= 1 - brightness / 255] += brightness / 255
+                    v[v <= 1 - brightness] += brightness
                 else:
-                    v[v >= abs(brightness) / 255] -= abs(brightness) / 255
+                    v[v >= abs(brightness)] -= abs(brightness)
 
         elif random_choice == 1:
             # ELIMINATE THE CHANCE OF RETURNING 0
             while saturation == 0:
-                saturation = random.uniform(self.saturation_range[0], self.saturation_range[1])
+                saturation = random.choice(self.brightness_range) / 255
             if saturation:
                 if saturation >= 0:
-                    s[s <= 1 - saturation / 255] += saturation / 255
+                    s[s <= 1 - saturation] += saturation
                 else:
-                    s[s >= abs(saturation) / 255] -= abs(saturation) / 255
+                    s[s >= abs(saturation)] -= abs(saturation)
 
         else:
             # ELIMINATE THE CHANCE OF RETURNING 0
             while contrast == 0:
-                contrast = random.uniform(self.contrast_range[0], self.contrast_range[1])
+                contrast = random.choice(self.brightness_range) / 255
             if contrast:
                 v = ((v - 0.5) * contrast + 0.5)
 
@@ -149,6 +148,9 @@ class ImageDataGenerator:
 
         image_hsv = cv2.merge((h, s, v))
         image = cv2.cvtColor(image_hsv, cv2.COLOR_HSV2RGB)
+
+        # Convert back to uint8
+        image = (image * 255).astype(np.uint8)
 
         return image
 
@@ -217,21 +219,22 @@ class ImageDataGenerator:
         :param num_aug_techniques: number of augmentation techniques available.
         :return: augmented image.
         """
-        random_choice = list(range(num_aug_techniques))
+        random_list = list(range(num_aug_techniques))
+        random_choice = random.choice(random_list)
 
-        if random.choice(random_choice) == 0:
+        if random_choice == 0:
             image = self.image_rotation(image)
             print('Image Rotation Technique applied!')
-        elif random.choice(random_choice) == 1:
+        elif random_choice == 1:
             image = self.image_shift(image)
             print('Image Shift Technique applied!')
-        elif random.choice(random_choice) == 2:
+        elif random_choice == 2:
             image = self.image_HSV(image)
             print('Image HSV Technique applied!')
-        elif random.choice(random_choice) == 3:
+        elif random_choice == 3:
             image = self.image_zoom(image)
             print('Image Zoom Technique applied!')
-        elif random.choice(random_choice) == 4:
+        elif random_choice == 4:
             image = self.image_gaussian_blur(image)
             print('Image Gaussian Blur Technique applied!')
         if self.check_shape:
@@ -247,9 +250,9 @@ class SequenceDataGenerator(Sequence):
         self.aug_params = {"rotation_range": [-25, 25],
                            "width_shift_range": [-30, 30],
                            "height_shift_range": [-30, 30],
-                           "brightness_range": [-50, 50],
-                           "contrast_range": [0.75, 2],
-                           "saturation_range": [-50, 50],
+                           "brightness_range": [-50, -40, -30, 30, 40, 50],
+                           "contrast_range": [0.75, 1, 1.25, 1.5, 1.75, 2],
+                           "saturation_range": [-50, -40, -30, 30, 40, 50],
                            "zoom_range": [1.10, 1.25],
                            "preprocessing_function": True,          # needs to be True to image_HSV work
                            "check_shape": True,
@@ -288,7 +291,7 @@ class SequenceDataGenerator(Sequence):
         :return: batch of images and labels.
         """
         path_images = []
-        batch_images = []
+        images = []
 
         batch_rows_df = self.dataframe[idx * self.batch_size:(idx + 1) * self.batch_size]
 
@@ -304,7 +307,7 @@ class SequenceDataGenerator(Sequence):
 
         for sequence in path_images:
             images_sequence = [cv2.imread(image) for image in sequence]
-            batch_images.append(images_sequence)
+            images.append(images_sequence)
 
         train_image_gen = ImageDataGenerator(rotation_range=self.aug_params["rotation_range"],
                                              width_shift_range=self.aug_params["width_shift_range"],
@@ -316,24 +319,34 @@ class SequenceDataGenerator(Sequence):
                                              pre_processing=self.aug_params["preprocessing_function"],
                                              check_shape=self.aug_params["check_shape"],
                                              gaussian_blur=self.aug_params["gaussian_blur"])
-        plot_sequence = False
+        plot_sequence = True
         augmented_images = []
-        for sequence in batch_images:
+        for sequence in images:
             augmented_sequence = [train_image_gen.apply_random_augmentation(image, 5) for image in sequence]
-            if plot_sequence:
+            """if plot_sequence:
                 f, axarr = plt.subplots(1, 4)
                 for i in range(4):
                     axarr[i].imshow(augmented_sequence[i])
-                plt.close()
+                plt.close()"""
             print('---------------------------------')
 
             augmented_images.append(augmented_sequence)
 
         batch_images = np.array(augmented_images)               # shape: (64, 4, 224, 224, 3)
-        """count = 0
-        for image in batch_images:
-            count += 1
-            cv2.imwrite(f'D:\TEST_BATCH_IMAGES\{count}.jpg', image)"""
+
+        batch_images = np.clip(batch_images, 0, 255)
+        # Convert to uint8
+        # batch_images = (batch_images * 255).astype(np.uint8)
+
+        if plot_sequence:
+            f, axarr = plt.subplots(4, 4)
+            for i in range(4):
+                for j in range(4):
+                    img_rgb = cv2.cvtColor(batch_images[i][j], cv2.COLOR_BGR2RGB)
+                    axarr[i, j].imshow(img_rgb)
+                    axarr[i, j].axis('off')  # Turn off axis
+            plt.show()
+            plt.close()
 
         # Creating a numpy array from the list
         batch_labels = np.array(batch_labels).reshape(-1, 1)
