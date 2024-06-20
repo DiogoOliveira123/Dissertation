@@ -2,9 +2,14 @@ import tensorflow.keras.applications.vgg16
 import tensorflow as tf
 import tensorflow.keras.activations
 from tensorflow.keras.preprocessing.image import ImageDataGenerator, DirectoryIterator
+from tensorflow.keras.layers import Conv3D, MaxPooling3D, GlobalAveragePooling3D, Reshape, Dropout, LSTM
+from tensorflow.keras.regularizers import l1_l2
 from contrast_augm import *
 from RESNET50 import *
 import os
+import sklearn.metrics as skm
+from sklearn.preprocessing import label_binarize
+import csv
 import shutil
 import datetime
 from time import time as tick
@@ -16,6 +21,9 @@ from keras import *
 import h5py
 import keras.regularizers as regul
 from keras.utils import Sequence
+from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class DLModels:
@@ -77,33 +85,6 @@ class DLModels:
         # print("Pre-processing function")
         img = (img - np.min(img)) / (np.max(img) - np.min(img))
         return img
-
-    def DataGenerator4Statistics(self, train_dir, val_dir, test_dir):
-        # TRAIN
-        train_datagen = ImageDataGenerator()
-        train_generator = train_datagen.flow_from_directory(train_dir,
-                                                            target_size=(self.fixed_width, self.fixed_width),
-                                                            batch_size=self.batch_size,
-                                                            shuffle=False,
-                                                            class_mode='categorical')
-
-        # VALIDATION
-        val_datagen = ImageDataGenerator()
-        val_generator = val_datagen.flow_from_directory(val_dir,
-                                                        target_size=(self.fixed_width, self.fixed_width),
-                                                        batch_size=self.batch_size,
-                                                        shuffle=False,
-                                                        class_mode='categorical')
-
-        # TEST
-        test_datagen = ImageDataGenerator()
-        test_generator = test_datagen.flow_from_directory(test_dir,
-                                                          target_size=(self.fixed_width, self.fixed_width),
-                                                          batch_size=self.batch_size,
-                                                          shuffle=False,
-                                                          class_mode='categorical')
-
-        return train_generator, val_generator, test_generator
 
     def DataGenerator(self, train_dir, val_dir, test_dir, val_shuffle, val_augment):
 
@@ -751,6 +732,152 @@ class DLModels:
 
         return vgg_spatial
 
+    # CAUSED OVERFITTING
+    def Conv3DLSTM_V1(self, num_classes, input_shape=(64, 3, 224, 224, 3)):
+        model = Sequential()
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same', input_shape=input_shape[1:]))
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu'))
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu'))
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu'))
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(512, (3, 3, 3), padding='same', activation='relu'))
+        model.add(Conv3D(512, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(1024, activation='relu'))  # Fully connected layer before LSTM
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 256, activation='relu'))  # Another fully connected layer before LSTM
+        model.add(Reshape((input_shape[1], 256)))  # Reshape to (timesteps, features) for LSTM
+        model.add(LSTM(256, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+
+    def Conv3DLSTM_V2(self, num_classes, input_shape=(64, 3, 224, 224, 3)):
+        model = Sequential()
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same', input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Reduced the number of Conv3D layers and their sizes
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu'))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Use Global Average Pooling instead of Flatten
+        model.add(GlobalAveragePooling3D())
+
+        model.add(Dense(512, activation='relu'))  # Reduced size of dense layers
+        model.add(Dropout(0.5))
+        
+        # Reshape to (timesteps, features) for LSTM
+        model.add(Reshape((input_shape[1], -1)))
+        model.add(LSTM(256, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V3(self, num_classes, input_shape=(32, 3, 224, 224, 3)): # Reduced batch size from 64 to 32
+        model = Sequential()
+
+        # Added L1 and L2 Regularization
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                         kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Removed 1 block of Conv3D layers HERE
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 256, activation='relu', kernel_regularizer=regularizer))  # Fully connected layer before LSTM
+        # Removed 1 Dense Layer HERE
+        model.add(Reshape((input_shape[1], 256)))  # Reshape to (timesteps, features) for LSTM
+        model.add(LSTM(256, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V4(self, num_classes, input_shape=(32, 3, 224, 224, 3)):
+        model = Sequential()
+
+        # Added L1 and L2 Regularization
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)
+
+        model.add(Conv3D(16, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                         kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(32, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        # Removed 1 Conv3D layer HERE
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Removed 1 block of Conv3D layers HERE
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(128, activation='relu', kernel_regularizer=regularizer))  # Changed dense layer to 256
+        # VERIFICAR LAYER RESHAPE ANTES DE CORRER O MODELO
+        model.add(Reshape((input_shape[1], 128)))  # Reshape to (timesteps, features) for LSTM
+        model.add(LSTM(64, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+
 
 class TrainModel(DLModels):
 
@@ -767,9 +894,6 @@ class TrainModel(DLModels):
 
     def dataGenerator(self, train_dir, val_dir, test_dir, val_shuffle, val_augment):
         return super(TrainModel, self).DataGenerator(train_dir, val_dir, test_dir, val_shuffle, val_augment)
-
-    def dataGenerator4Statistics(self, train_dir, val_dir, test_dir):
-        return super(TrainModel, self).DataGenerator4Statistics(train_dir, val_dir, test_dir)
 
     def build_model(self, type_model, weights, input_shape):
 
@@ -789,6 +913,12 @@ class TrainModel(DLModels):
             self.model = self.vgg16_spatial(self.num_classes, pretrained_weights=weights, input_shape=input_shape)
         elif type_model == "UNET_CLASSF":
             self.model = self.unet_classf(input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V1":
+            self.model = self.Conv3DLSTM_V1(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V2":
+            self.model = self.Conv3DLSTM_V2(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V3":
+            self.model = self.Conv3DLSTM_V3(self.num_classes, input_shape=input_shape)
 
         return self.model
 
@@ -806,6 +936,7 @@ class TrainModel(DLModels):
             print("Starting to train...")
 
             tin = tick()
+    
             history = model.fit(train_generator,
                                 steps_per_epoch=len(train_generator),
                                 validation_data=val_generator,
@@ -815,14 +946,15 @@ class TrainModel(DLModels):
                                 callbacks=callbacks,
                                 epochs=self.no_epochs,
                                 workers=1)
+            
             tout = tick()
             time = tout - tin
 
-            '''no_epochs = len(history.history['loss'])
+            """no_epochs = len(history.history['loss'])
             print(f'{no_epochs} epochs in {time}s')
 
             self.plot_history(history, no_epochs,
-                              ("{}/{}_{}").format(os.path.join(self.save_path, "results"), results_prefix, "trainplot.png"))'''
+                              ("{}/{}_{}").format(os.path.join(self.base_path, "results"), results_prefix, "trainplot.png"))"""
 
         return time, checkpoint
 
@@ -883,6 +1015,75 @@ class TrainModel(DLModels):
 
         return callbacks
 
+    def call_metrics(self, y_true, y_pred, prediction, dir, data):
+        y_true = np.array(y_true)
+
+        # Check the shape of y_true and y_pred
+        print(f'y_true shape: {y_true.shape}')
+        print(f'prediction shape: {prediction.shape}')
+
+        # Ensure y_true is a 1D array
+        if y_true.ndim != 1:
+            raise ValueError("y_true should be a 1D array of class labels")
+        
+        # Ensure y_pred is a 2D array
+        if prediction.ndim != 2:
+            raise ValueError("y_pred should be a 2D array with shape (n_samples, n_classes)")
+
+        # Binarize the output for multiclass case
+        y_true_bin = label_binarize(y_true, classes=np.unique(y_true))
+
+        # Calculate ROC AUC
+        roc_auc = roc_auc_score(y_true, prediction, multi_class='ovr')
+
+        # Save ROC AUC to a file
+        with open(f'{dir}{data}_roc_auc_score.txt', 'w') as f:
+            f.write(f'ROC AUC: {roc_auc}\n')
+
+        # Calculate ROC curve
+        fpr = {}
+        tpr = {}
+        for i in range(prediction.shape[1]):
+            fpr[i], tpr[i], _ = roc_curve(y_true, prediction[:, i], pos_label=i)
+
+        # Plot and save ROC curve to a PNG file
+        plt.figure()
+        for i in range(prediction.shape[1]):
+            plt.plot(fpr[i], tpr[i], lw=2, label=f'Class {i} ROC curve (area = {roc_auc:0.2f})')
+        plt.plot([0, 1], [0, 1], color='grey', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.0])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC)')
+        plt.legend(loc="lower right")
+        plt.savefig(f'{dir}{data}_roc_curve.png')
+        plt.close()
+
+        # Calculate and plot Precision-Recall curve for each class
+        for i in range(prediction.shape[1]):
+            precision, recall, thresholds = precision_recall_curve(y_true_bin[:, i], prediction[:, i])
+        
+        # Save Precision-Recall curve to a CSV file
+        pr_curve_data = pd.DataFrame({
+            'Precision': precision,
+            'Recall': recall,
+            'Thresholds': np.append(thresholds, 1)  # to match the length
+        })
+        pr_curve_data.to_csv(f'{dir}{data}_precision_recall_curve.csv', index=False)
+
+        # Plot and save Precision-Recall curve to a PNG file
+        plt.figure()
+        plt.plot(recall, precision, color='blue', lw=2)
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('Precision-Recall Curve')
+        plt.savefig(f'{dir}{data}_precision_recall_curve.png')
+        plt.close()
+
+        ConfMat = skm.confusion_matrix(y_true.tolist(), y_pred)
+        np.savetxt(dir + f"{data}_ConfusionMatrix.csv", ConfMat, delimiter=",")
+
     def plot_history(hist, N, path):
         '''N = num_epochs'''
         plt.style.use("ggplot")
@@ -919,28 +1120,24 @@ class TrainModel(DLModels):
 
 class SequenceDataGenerator(Sequence):
 
-    def __init__(self, image_paths, mask_paths, batch_size):
-        self.image_paths = image_paths
-        self.mask_paths = mask_paths
+    def __init__(self, train_frames, val_frames, test_frames, batch_size):
+        self.train_frames = train_frames
+        self.val_frames = val_frames
+        self.test_frames = test_frames
         self.batch_size = batch_size
-        self.n = len(self.image_paths)
+        self.n = len(self.train_frames) + len(self.val_frames) + len(self.test_frames)
 
     def __len__(self):
         return int(np.ceil(self.n / float(self.batch_size)))
 
     def __getitem__(self, idx):
         batch_image_paths = self.image_paths[idx * self.batch_size:(idx + 1) * self.batch_size]
-        batch_mask_paths = self.mask_paths[idx * self.batch_size:(idx + 1) * self.batch_size]
 
         batch_images = [cv2.imread(image_path) for image_path in batch_image_paths]
-        batch_masks = [cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE) for mask_path in batch_mask_paths]
 
         # Perform additional preprocessing if needed, such as normalization
         batch_images = [cv2.cvtColor(image_path, cv2.COLOR_RGB2BGR) / 255 for image_path in batch_images]
-        batch_masks = [mask_path / 255 for mask_path in batch_masks]
 
         batch_images = np.array(batch_images)
-        batch_masks = np.array(batch_masks)
-        batch_masks = np.expand_dims(batch_masks, axis=-1)
 
-        return batch_images, batch_masks
+        return batch_images

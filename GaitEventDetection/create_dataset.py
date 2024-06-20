@@ -163,7 +163,7 @@ def saveCompressedImage(path_labeling, folder, participant, trial, path_videos, 
         return
 
     if first:
-        # FIRST PRINT ALL THE 4 FRAMES OF THE SEQUENCE, BUT ONLY ONCE
+        # FIRST PRINT ALL THE 3 FRAMES OF THE SEQUENCE, BUT ONLY ONCE
         for i in index_list:
             frame_index = int(re.sub('\D', '', i))
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
@@ -212,7 +212,7 @@ def saveCompressedImage(path_labeling, folder, participant, trial, path_videos, 
 class Dataset:
     def __init__(self):
         self.dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET'
-        self.excel_name = 'RGB_labeling_30Hz_balanced_aligned_v4.xlsx'
+        self.excel_name = 'RGB_labeling_30Hz_balanced_aligned_v5.xlsx'
         self.path_dirs = r'D:\Labeling_v3'
 
         self.NUM_PARTICIPANTS = 15
@@ -294,10 +294,10 @@ class Dataset:
                 num_total_labels += len(total_trial)
 
                 # Sliding Window Method
-                window_length = 4
+                window_length = 3
 
                 for i in range(window_length - 1, len(total_trial)):
-                    indexes_df = [[total_trial[i - 3][0], total_trial[i - 2][0], total_trial[i - 1][0], total_trial[i][0]]]
+                    indexes_df = [[total_trial[i - 2][0], total_trial[i - 1][0], total_trial[i][0]]]
                     """if len(indexes_df[0]) != len(set(indexes_df[0])):
                         print(indexes_df[0])
                         raise Exception("Error!")"""
@@ -333,7 +333,7 @@ class Dataset:
                     total_labels_df = total_labels_df.append(df, ignore_index=True)
 
         total_labels_df.to_excel(
-            r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v4.xlsx',
+            r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v5.xlsx',
             index=False)
 
         # Get number of frames

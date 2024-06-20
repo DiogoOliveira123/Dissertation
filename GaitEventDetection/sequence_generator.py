@@ -224,28 +224,24 @@ class ImageDataGenerator:
 
         if random_choice == 0:
             image = self.image_rotation(image)
-            print('Image Rotation Technique applied!')
         elif random_choice == 1:
             image = self.image_shift(image)
-            print('Image Shift Technique applied!')
         elif random_choice == 2:
             image = self.image_HSV(image)
-            print('Image HSV Technique applied!')
         elif random_choice == 3:
             image = self.image_zoom(image)
-            print('Image Zoom Technique applied!')
         elif random_choice == 4:
             image = self.image_gaussian_blur(image)
-            print('Image Gaussian Blur Technique applied!')
         if self.check_shape:
             image = self.image_check_shape(image)
         return image
 
 
 class SequenceDataGenerator(Sequence):
-    def __init__(self, dataframe, batch_size):
+    def __init__(self, dataframe, batch_size, augment=False):
         self.dataframe = dataframe
         self.batch_size = batch_size
+        self.augment = augment
         self.n = len(self.dataframe)
         self.aug_params = {"rotation_range": [-25, 25],
                            "width_shift_range": [-30, 30],
@@ -266,6 +262,7 @@ class SequenceDataGenerator(Sequence):
         :param csv_file: dataset
         :return: train, val and test DataFrames, containing only their rows in the dataset df.
         """
+        
         df = pd.read_excel(csv_file)
 
         mask_train = df['Frames Path'].str.contains('train')
@@ -301,7 +298,10 @@ class SequenceDataGenerator(Sequence):
             path_sequence = []
             for frame_idx in batch_rows_df.loc[row, 'Frames Indexes'].split():
                 frame_idx = int(re.sub('\D', '', frame_idx))
-                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(frame_idx)}.jpg')
+                birdlab_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/dataset_gaitevents'
+                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('D:\\Labeling_v2', birdlab_path), f'{str(frame_idx)}.jpg')
+                index_path = index_path.replace('\\', '/')
+                # index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(frame_idx)}.jpg')
                 path_sequence.append(index_path)
             path_images.append(path_sequence)
 
@@ -309,44 +309,39 @@ class SequenceDataGenerator(Sequence):
             images_sequence = [cv2.imread(image) for image in sequence]
             images.append(images_sequence)
 
-        train_image_gen = ImageDataGenerator(rotation_range=self.aug_params["rotation_range"],
-                                             width_shift_range=self.aug_params["width_shift_range"],
-                                             height_shift_range=self.aug_params["height_shift_range"],
-                                             brightness_range=self.aug_params["brightness_range"],
-                                             contrast_range=self.aug_params["contrast_range"],
-                                             saturation_range=self.aug_params["saturation_range"],
-                                             zoom_range=self.aug_params["zoom_range"],
-                                             pre_processing=self.aug_params["preprocessing_function"],
-                                             check_shape=self.aug_params["check_shape"],
-                                             gaussian_blur=self.aug_params["gaussian_blur"])
-        plot_sequence = True
-        augmented_images = []
-        for sequence in images:
-            augmented_sequence = [train_image_gen.apply_random_augmentation(image, 5) for image in sequence]
-            """if plot_sequence:
-                f, axarr = plt.subplots(1, 4)
-                for i in range(4):
-                    axarr[i].imshow(augmented_sequence[i])
-                plt.close()"""
-            print('---------------------------------')
+        if self.augment:
+            image_generator = ImageDataGenerator(rotation_range=self.aug_params["rotation_range"],
+                                                 width_shift_range=self.aug_params["width_shift_range"],
+                                                 height_shift_range=self.aug_params["height_shift_range"],
+                                                 brightness_range=self.aug_params["brightness_range"],
+                                                 contrast_range=self.aug_params["contrast_range"],
+                                                 saturation_range=self.aug_params["saturation_range"],
+                                                 zoom_range=self.aug_params["zoom_range"],
+                                                 pre_processing=self.aug_params["preprocessing_function"],
+                                                 check_shape=self.aug_params["check_shape"],
+                                                 gaussian_blur=self.aug_params["gaussian_blur"])
 
-            augmented_images.append(augmented_sequence)
+            original_sequences_percentage = 60 // 100
+            batch_total_sequences = len(batch_rows_df)
+            batch_original_sequences = batch_total_sequences * original_sequences_percentage 
+            batch_augmented_sequences = batch_total_sequences - batch_original_sequences
+            batch_augmented_indexes = []
+            random_index = 0
 
-        batch_images = np.array(augmented_images)               # shape: (64, 4, 224, 224, 3)
+            # GENERATE LIST OF AUGMENTED SEQUENCES' INDEXES
+            for _ in range(batch_augmented_sequences):
+                while random_index in batch_augmented_indexes:
+                    random_index = random.randrange(0, batch_total_sequences)
+                batch_augmented_indexes.append(random_index)
+
+            # GENERATE BATCH OF NON-AUGMENTED AND AUGMENTED SEQUENCES
+            for index in batch_augmented_indexes:
+                aug_seq = [image_generator.apply_random_augmentation(image, 5) for image in images[index]]
+                images[index] = aug_seq
+
+        batch_images = np.array(images)               # shape: (64, 4, 224, 224, 3)
 
         batch_images = np.clip(batch_images, 0, 255)
-        # Convert to uint8
-        # batch_images = (batch_images * 255).astype(np.uint8)
-
-        if plot_sequence:
-            f, axarr = plt.subplots(4, 4)
-            for i in range(4):
-                for j in range(4):
-                    img_rgb = cv2.cvtColor(batch_images[i][j], cv2.COLOR_BGR2RGB)
-                    axarr[i, j].imshow(img_rgb)
-                    axarr[i, j].axis('off')  # Turn off axis
-            plt.show()
-            plt.close()
 
         # Creating a numpy array from the list
         batch_labels = np.array(batch_labels).reshape(-1, 1)
@@ -360,9 +355,9 @@ class SequenceDataGenerator(Sequence):
 
     """
     .) Sequence Data Generator:
-    -> 192172 seqs / 64 = 3002.6875 ~ 3003 batch de 64 batch size
+    -> 140861 seqs / 64 = 2200.953125 ~ 2200 batch de 64 batch size
                               ^
-                    3002 * 64 + 44 seqs
+                     2200 * 64 + 61 seqs
 
         [img1   ,   img2   ,   img3   ,   img4], [img1   ,   img2   ,   img3   ,   img4], ... = 64 sequences
           ^          ^
@@ -371,4 +366,6 @@ class SequenceDataGenerator(Sequence):
                      Sequence 1                               Sequence 2
 
     .) Random Data Augmentation Implementation:
-    -> Apply 70% / 30% of normal data and augmented data, respectively."""
+    -> Apply 70% / 30% of normal data and augmented data, respectively.
+    -> 140861 * 0.7 = 98602,7 sequences => 98602 + 192533 * 0.7 sequences
+     """
