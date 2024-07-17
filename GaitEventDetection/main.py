@@ -1,23 +1,39 @@
+import matplotlib.pyplot as plt
+
 from create_dataset import *
 from sequence_generator import *
 from models import TrainModel
 import tensorflow as tf
 import sklearn.metrics as skm
 from utils import Precision, Recall, F1Score
+from calc_temp_params import *
+from gradCam import *
 
 if __name__ == '__main__':
 
     random.seed(0)
     state = random.getstate()
 
-    base_path = '/home/birdlab/Desktop/WALKIT_SW/code/GaitEventDetection/'
-    dataset_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+    # LOCAL PC Paths
+    # base_path = r'C:\Users\diman\PycharmProjects\dissertation\GaitEventDetection'
+    # dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+
+    # BIRDLAB Paths
+    # base_path = r'C:\Users\diman\PycharmProjects\dissertation\GaitEventDetection'
+    # dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+
+    # CLUSTER Paths
+    base_path = '/home/id9480/gaitEvents'
+    dataset_path = '/home/id9480/gaitEvents/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
     NUM_PARTICIPANTS = 15
     TEST_PARTICIPANTS = ['15', '8', '3']
     VAL_PARTICIPANTS = ['2', '11']
 
     train_network = True
+    gradCam = False
+    plot_true_pred = False
+    get_temp_params = False
 
     if not train_network:
         data = Dataset()
@@ -26,15 +42,15 @@ if __name__ == '__main__':
 
     else:
         # train parameters
-        epochs = 100
-        batch_size = 32
+        epochs = 200
+        batch_size = 64
         num_classes = 3
         seq_len = 3
         width = 224
         height = 224
         num_channels = 3
 
-        type_model = "Conv3DLSTM_V3"
+        type_model = "Conv3DLSTM_V8"
 
         # Define model parameters
         input_shape = (batch_size, seq_len, width, height, num_channels)
@@ -47,20 +63,112 @@ if __name__ == '__main__':
         print("Batch Size: {}".format(batch_size))
 
         training = TrainModel(checkpoint_metric_name="val_F1Score", no_epochs=epochs, base_path=base_path,
-                           dataset_path=dataset_path, num_classes=num_classes,
-                           fixed_width=224, batch_size=batch_size)
+                              dataset_path=dataset_path, num_classes=num_classes,
+                              fixed_width=224, batch_size=batch_size)
 
         path_train = []
         path_val = []
         path_test = []
+        true_labels = []
 
         # Split TRAIN, VAL, TEST info from CSV FILE
         train_df, val_df, test_df = SequenceDataGenerator.splitTrainValTest(dataset_path)
+
+        if get_temp_params:
+            # Get gait events
+            R_HS = []
+            R_TO = []
+            L_HS = []
+            L_TO = []
+
+            for i in range(1, len(true_labels) - 1):
+                if true_labels[i - 1] == 0 and true_labels[i] == -1:
+                    R_HS.append(i)
+                elif true_labels[i - 1] == 0 and true_labels[i] == 1:
+                    L_HS.append(i)
+                elif true_labels[i - 1] == -1 and true_labels[i] == 0:
+                    R_TO.append(i)
+                elif true_labels[i - 1] == 1 and true_labels[i] == 0:
+                    L_TO.append(i)
+
+            # R: 0->10 | 39->76 | 100->124 | 145->164 | 187->208 | 233->258
+            # L: 10->39 | 76->100 | 124->145 | 164->187 | 208->233 | 258->281
+            fs = 30  # camera sampling frequency
+            temp_params = TemporalParameters(freq=30)
+
+            # Calculate R and L STEP time and GAI (Gait Asymmetry Index) for STEP
+            if R_HS[0] < L_HS[0]:  # right foot first
+                R_first_step = round(1 / 30 * R_HS[0], 2)
+                L_first_step = round((L_HS[0] - R_HS[0]) * 1 / 30, 2)
+
+                R_step_time = temp_params.get_step_time(R_HS[1:], L_HS)
+                R_step_time.insert(0, R_first_step)
+
+                L_step_time = temp_params.get_step_time(L_HS[1:], R_HS[1:])
+                L_step_time.insert(0, L_first_step)
+
+                R_step_avg_time = sum(R_step_time) / len(R_step_time)
+                L_step_avg_time = sum(L_step_time) / len(L_step_time)
+                step_index = temp_params.get_asymm_index(R_step_avg_time, L_step_avg_time)
+
+            else:  # left foot first
+                L_first_step = round(1 / 30 * L_HS[0], 2)
+                R_first_step = round((R_HS[0] - L_HS[0]) * 1 / 30, 2)
+
+                L_step_time = temp_params.get_step_time(L_HS[1:], R_HS)
+                L_step_time.insert(0, L_first_step)
+
+                R_step_time = temp_params.get_step_time(L_HS, R_HS[1:])
+                R_step_time.insert(0, R_first_step)
+
+                R_step_avg_time = sum(R_step_time) / len(R_step_time)
+                L_step_avg_time = sum(L_step_time) / len(L_step_time)
+                step_index = temp_params.get_asymm_index(R_step_avg_time, L_step_avg_time)
+
+            num_steps = len(R_step_time) + len(L_step_time)
+
+            # Calculate R and L STRIDE time and GAI (Gait Asymmetry Index) for STRIDE
+            R_stride_time = temp_params.get_stride_time(R_HS)
+            L_stride_time = temp_params.get_stride_time(L_HS)
+            R_stride_avg_time = sum(R_stride_time) / len(R_stride_time)
+            L_stride_avg_time = sum(L_stride_time) / len(L_stride_time)
+            stride_index = temp_params.get_asymm_index(R_stride_avg_time, L_stride_avg_time)
+
+            # Calculate R and L STANCE time and GAI (Gait Asymmetry Index) for STANCE
+            R_stance_time = temp_params.get_stance_time(R_TO, R_HS)
+            L_stance_time = temp_params.get_stance_time(L_TO, L_HS)
+            R_stance_avg_time = sum(R_stance_time) / len(R_stance_time)
+            L_stance_avg_time = sum(L_stance_time) / len(L_stance_time)
+            stance_index = temp_params.get_asymm_index(R_stride_avg_time, L_stride_avg_time)
+
+            # Calculate R and L SWING time and GAI (Gait Asymmetry Index) for SWING
+            R_swing_time = temp_params.get_swing_time(R_HS[1:], R_TO)
+            L_swing_time = temp_params.get_swing_time(L_HS[1:], L_TO)
+            R_swing_avg_time = sum(R_swing_time) / len(R_swing_time)
+            L_swing_avg_time = sum(L_swing_time) / len(L_swing_time)
+            swing_index = temp_params.get_asymm_index(R_swing_avg_time, L_swing_avg_time)
 
         # SEQUENCE GENERATOR
         train_generator = SequenceDataGenerator(train_df, batch_size, augment=True)
         val_generator = SequenceDataGenerator(val_df, batch_size, augment=False)
         test_generator = SequenceDataGenerator(test_df, batch_size, augment=False)
+
+        # Get GradCam images
+        if gradCam:
+            model = tf.keras.models.load_model('conv3dlstm_V7_model.h5',
+                                               custom_objects={'F1Score': F1Score})  # Load model
+            sequence = test_generator[0]  # Load sequence of frames
+            layer_name = 'conv3d_2'  # Layer to apply visualization
+            class_idx = 0  # Target class index
+
+            heatmaps = apply_grad_cam_to_sequence(model, sequence, layer_name, class_idx)
+
+            # To visualize heatmaps, you can use OpenCV or any other image library
+            for i, heatmap in enumerate(heatmaps):
+                colored_heatmap = colour_grad_cam(heatmap=heatmap, image_rgb=sequence[0][20])
+                plt.imshow(colored_heatmap, cmap='jet', alpha=0.5)
+                plt.title(f'Frame {i}')
+                plt.show()
 
         # Build model
         model = training.build_model(type_model=type_model, weights=None, input_shape=input_shape)
@@ -95,7 +203,7 @@ if __name__ == '__main__':
         if not os.path.isdir(results_dir):
             os.makedirs(results_dir)
 
-        evaluation_dir = base_path + "evaluation/"
+        evaluation_dir = base_path + "evaluation/" + type_model
         if not os.path.isdir(evaluation_dir):
             os.makedirs(evaluation_dir)
 
@@ -103,7 +211,11 @@ if __name__ == '__main__':
         time, checkpoint = training.training_model(model, train_generator, val_generator, results_prefix)
 
         # Save the model
-        model.save('conv3dlstm_model.h5')
+        model.save(type_model + '_model.h5')
+
+        # Load weights in case of needing to validate the trained model again
+        # model.load_weights('Conv3DLSTM_V7_GaitEvents_BS32_bestw.h5')
+        # print(type_model + ' model weights loaded.')
 
         # Get Predictions and Ground Truths
         print('Predicting in the validation set...')
@@ -117,6 +229,29 @@ if __name__ == '__main__':
             val_label = y_batch.argmax(axis=1)
             for pos in range(len(val_label)):
                 val_true.append(val_label[pos])
+
+        # Get True vs Predicted labels plot
+        if plot_true_pred:
+            for i in range(len(val_pred)):
+                if val_pred[i] == 1:
+                    val_pred[i] = -1
+                elif val_pred[i] == 2:
+                    val_pred[i] = 1
+
+            for i in range(len(val_true)):
+                if val_true[i] == 1:
+                    val_true[i] = -1
+                elif val_true[i] == 2:
+                    val_true[i] = 1
+
+            y_range = 550
+            # Plot true labels vs model's predicted labels
+            y_axis = [x for x in range(y_range)]
+            plt.plot(y_axis, val_true[:y_range], label='True')
+            plt.plot(y_axis, val_pred[:y_range], label='Predict')
+            plt.title('True vs Predicted Labels')
+            plt.show()
+            plt.close()
 
         training.call_metrics(y_true=val_true, y_pred=val_pred, prediction=prediction, dir=evaluation_dir, data='val')
 
@@ -132,7 +267,8 @@ if __name__ == '__main__':
             for pos in range(len(test_label)):
                 test_true.append(test_label[pos])
 
-        training.call_metrics(y_true=test_true, y_pred=test_pred, prediction=prediction, dir=evaluation_dir, data='test')
+        training.call_metrics(y_true=test_true, y_pred=test_pred, prediction=prediction, dir=evaluation_dir,
+                              data='test')
 
         print('Time of training: {} seconds'.format(time))
         print('Network weights saved in: {}'.format(checkpoint))
