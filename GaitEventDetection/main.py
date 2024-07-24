@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
-
-from create_dataset import *
-from sequence_generator import *
-from models import TrainModel
 import tensorflow as tf
 import sklearn.metrics as skm
+
+from models import TrainModel
 from utils import Precision, Recall, F1Score
+from create_dataset import *
+from sequence_generator import *
 from calc_temp_params import *
 from gradCam import *
+from save_plot_true_pred import save_plot_true_pred
 
 if __name__ == '__main__':
 
@@ -19,20 +20,22 @@ if __name__ == '__main__':
     # dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
     # BIRDLAB Paths
-    # base_path = r'C:\Users\diman\PycharmProjects\dissertation\GaitEventDetection'
-    # dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+    base_path = '/home/birdlab/Desktop/WALKIT_SW/code/GaitEventDetection/'
+    dataset_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
     # CLUSTER Paths
-    base_path = '/home/id9480/gaitEvents'
-    dataset_path = '/home/id9480/gaitEvents/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+    # base_path = '/home/id9480/gaitEvents'
+    # dataset_path = '/home/id9480/gaitEvents/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
+    NUM_TRIALS = 24
     NUM_PARTICIPANTS = 15
     TEST_PARTICIPANTS = ['15', '8', '3']
     VAL_PARTICIPANTS = ['2', '11']
 
     train_network = True
     gradCam = False
-    plot_true_pred = False
+    plot_val_true_pred = False
+    plot_test_true_pred = True
     get_temp_params = False
 
     if not train_network:
@@ -50,7 +53,7 @@ if __name__ == '__main__':
         height = 224
         num_channels = 3
 
-        type_model = "Conv3DLSTM_V8"
+        type_model = "Conv3DLSTM_V7"
 
         # Define model parameters
         input_shape = (batch_size, seq_len, width, height, num_channels)
@@ -73,6 +76,11 @@ if __name__ == '__main__':
 
         # Split TRAIN, VAL, TEST info from CSV FILE
         train_df, val_df, test_df = SequenceDataGenerator.splitTrainValTest(dataset_path)
+
+        # SEQUENCE GENERATOR
+        train_generator = SequenceDataGenerator(train_df, batch_size, augment=True)
+        val_generator = SequenceDataGenerator(val_df, batch_size, augment=False)
+        test_generator = SequenceDataGenerator(test_df, batch_size, augment=False)
 
         if get_temp_params:
             # Get gait events
@@ -148,11 +156,6 @@ if __name__ == '__main__':
             L_swing_avg_time = sum(L_swing_time) / len(L_swing_time)
             swing_index = temp_params.get_asymm_index(R_swing_avg_time, L_swing_avg_time)
 
-        # SEQUENCE GENERATOR
-        train_generator = SequenceDataGenerator(train_df, batch_size, augment=True)
-        val_generator = SequenceDataGenerator(val_df, batch_size, augment=False)
-        test_generator = SequenceDataGenerator(test_df, batch_size, augment=False)
-
         # Get GradCam images
         if gradCam:
             model = tf.keras.models.load_model('conv3dlstm_V7_model.h5',
@@ -173,7 +176,7 @@ if __name__ == '__main__':
         # Build model
         model = training.build_model(type_model=type_model, weights=None, input_shape=input_shape)
 
-        model.summary()
+        # model.summary()
 
         print('\nCompiling....')
         learning_rate = 0.0001
@@ -208,14 +211,14 @@ if __name__ == '__main__':
             os.makedirs(evaluation_dir)
 
         # Train the model
-        time, checkpoint = training.training_model(model, train_generator, val_generator, results_prefix)
+        # time, checkpoint = training.training_model(model, train_generator, val_generator, results_prefix)
 
         # Save the model
-        model.save(type_model + '_model.h5')
+        # model.save(type_model + '_model.h5')
 
         # Load weights in case of needing to validate the trained model again
-        # model.load_weights('Conv3DLSTM_V7_GaitEvents_BS32_bestw.h5')
-        # print(type_model + ' model weights loaded.')
+        model.load_weights('weights/Conv3DLSTM_V7_GaitEvents_BS32_bestw.h5')
+        print(type_model + ' model weights loaded.')
 
         # Get Predictions and Ground Truths
         print('Predicting in the validation set...')
@@ -229,31 +232,14 @@ if __name__ == '__main__':
             val_label = y_batch.argmax(axis=1)
             for pos in range(len(val_label)):
                 val_true.append(val_label[pos])
-
-        # Get True vs Predicted labels plot
-        if plot_true_pred:
-            for i in range(len(val_pred)):
-                if val_pred[i] == 1:
-                    val_pred[i] = -1
-                elif val_pred[i] == 2:
-                    val_pred[i] = 1
-
-            for i in range(len(val_true)):
-                if val_true[i] == 1:
-                    val_true[i] = -1
-                elif val_true[i] == 2:
-                    val_true[i] = 1
-
-            y_range = 550
-            # Plot true labels vs model's predicted labels
-            y_axis = [x for x in range(y_range)]
-            plt.plot(y_axis, val_true[:y_range], label='True')
-            plt.plot(y_axis, val_pred[:y_range], label='Predict')
-            plt.title('True vs Predicted Labels')
-            plt.show()
-            plt.close()
-
-        training.call_metrics(y_true=val_true, y_pred=val_pred, prediction=prediction, dir=evaluation_dir, data='val')
+        
+        if plot_val_true_pred:
+            save_plot_true_pred(participants=VAL_PARTICIPANTS,
+                                generator=val_generator,
+                                data='val',
+                                pred_labels=val_pred,
+                                true_labels=val_true,
+                                base_path=base_path)
 
         print('Predicting in the test set...')
         prediction = model.predict(test_generator, verbose=1)
@@ -267,10 +253,28 @@ if __name__ == '__main__':
             for pos in range(len(test_label)):
                 test_true.append(test_label[pos])
 
-        training.call_metrics(y_true=test_true, y_pred=test_pred, prediction=prediction, dir=evaluation_dir,
+        # Get True vs Predicted labels plot
+        if plot_test_true_pred:            
+            save_plot_true_pred(participants=TEST_PARTICIPANTS,
+                                generator=test_generator,
+                                data='test',
+                                pred_labels=test_pred,
+                                true_labels=test_true,
+                                base_path=base_path)
+        
+        training.call_metrics(y_true=val_true, 
+                              y_pred=val_pred, 
+                              prediction=prediction, 
+                              dir=evaluation_dir, 
+                              data='val')
+        
+        training.call_metrics(y_true=test_true, 
+                              y_pred=test_pred, 
+                              prediction=prediction, 
+                              dir=evaluation_dir,
                               data='test')
 
-        print('Time of training: {} seconds'.format(time))
-        print('Network weights saved in: {}'.format(checkpoint))
+        # print('Time of training: {} seconds'.format(time))
+        # print('Network weights saved in: {}'.format(checkpoint))
 
 

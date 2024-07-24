@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-
 def obtain_grad_cam2(sequence, model, last_conv_layer, pred_index=None):
     '''
     Function to visualize grad-cam heatmaps
@@ -27,7 +26,6 @@ def obtain_grad_cam2(sequence, model, last_conv_layer, pred_index=None):
 
     return heatmap.numpy()
 
-
 def apply_grad_cam_to_sequence(model, sequence, layer_name, class_idx):
     heatmaps = []
 
@@ -37,7 +35,6 @@ def apply_grad_cam_to_sequence(model, sequence, layer_name, class_idx):
         heatmaps.append(heatmap)
 
     return heatmaps
-
 
 def colour_grad_cam(heatmap, image_rgb):
     # Return to BGR [0..255] from the preprocessed image

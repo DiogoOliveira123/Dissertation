@@ -298,10 +298,10 @@ class SequenceDataGenerator(Sequence):
             path_sequence = []
             for frame_idx in batch_rows_df.loc[row, 'Frames Indexes'].split():
                 frame_idx = int(re.sub('\D', '', frame_idx))
-                # birdlab_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/dataset_gaitevents'
-                # index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('D:\\Labeling_v2', birdlab_path), f'{str(frame_idx)}.jpg')
-                # index_path = index_path.replace('\\', '/')
-                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(frame_idx)}.jpg')
+                birdlab_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/dataset_gaitevents'
+                index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('D:\\Labeling_v2', birdlab_path), f'{str(frame_idx)}.jpg')
+                index_path = index_path.replace('\\', '/')
+                # index_path = os.path.join(batch_rows_df.loc[row, 'Frames Path'].replace('v2', 'v3'), f'{str(frame_idx)}.jpg')
                 path_sequence.append(index_path)
             path_images.append(path_sequence)
 
