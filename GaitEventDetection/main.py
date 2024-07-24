@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
 import sklearn.metrics as skm
 
@@ -16,12 +17,12 @@ if __name__ == '__main__':
     state = random.getstate()
 
     # LOCAL PC Paths
-    # base_path = r'C:\Users\diman\PycharmProjects\dissertation\GaitEventDetection'
-    # dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+    base_path = r'C:\Users\diman\PycharmProjects\dissertation\GaitEventDetection'
+    dataset_path = r'C:\Users\diman\OneDrive\Ambiente de Trabalho\DATASET\RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
     # BIRDLAB Paths
-    base_path = '/home/birdlab/Desktop/WALKIT_SW/code/GaitEventDetection/'
-    dataset_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
+    # base_path = '/home/birdlab/Desktop/WALKIT_SW/code/GaitEventDetection/'
+    # dataset_path = '/home/birdlab/Desktop/WALKIT_SW/dataset/RGB_labeling_30Hz_balanced_aligned_v6.xlsx'
 
     # CLUSTER Paths
     # base_path = '/home/id9480/gaitEvents'
@@ -33,9 +34,9 @@ if __name__ == '__main__':
     VAL_PARTICIPANTS = ['2', '11']
 
     train_network = True
-    gradCam = False
+    gradCam = True
     plot_val_true_pred = False
-    plot_test_true_pred = True
+    plot_test_true_pred = False
     get_temp_params = False
 
     if not train_network:
@@ -45,8 +46,8 @@ if __name__ == '__main__':
 
     else:
         # train parameters
-        epochs = 200
-        batch_size = 64
+        epochs = 100
+        batch_size = 32
         num_classes = 3
         seq_len = 3
         width = 224
@@ -159,24 +160,59 @@ if __name__ == '__main__':
         # Get GradCam images
         if gradCam:
             model = tf.keras.models.load_model('conv3dlstm_V7_model.h5',
-                                               custom_objects={'F1Score': F1Score})  # Load model
-            sequence = test_generator[0]  # Load sequence of frames
+                                               custom_objects={'F1Score': F1Score})
+            batch_idx = 2
+            input_volume = test_generator[batch_idx][0]  # Batch of sequences of frames
             layer_name = 'conv3d_2'  # Layer to apply visualization
-            class_idx = 0  # Target class index
+            sequence_idx = 0
 
-            heatmaps = apply_grad_cam_to_sequence(model, sequence, layer_name, class_idx)
+            # Remove last layer's activation
+            model.layers[-1].activation = None
+            heatmaps = []
 
-            # To visualize heatmaps, you can use OpenCV or any other image library
-            for i, heatmap in enumerate(heatmaps):
-                colored_heatmap = colour_grad_cam(heatmap=heatmap, image_rgb=sequence[0][20])
-                plt.imshow(colored_heatmap, cmap='jet', alpha=0.5)
-                plt.title(f'Frame {i}')
-                plt.show()
+            n_rows = 4
+            n_cols = 4
+
+            # Display 4 rows and 2 columns of images
+            fig, ax = plt.subplots(n_rows, n_cols, figsize=(16, 16))  # Adjusted figsize for clarity
+
+            for i in range(n_rows):
+                for j in range(n_cols):
+                    index = sequence_idx + (i * 4 + j) * 2  # Indexing to skip 2 images each iteration
+                    if index >= len(input_volume):
+                        break
+
+                    # Prepare image array for the model
+                    img_array = np.expand_dims(input_volume[index], axis=0)
+
+                    # Print the top predicted class
+                    preds = model.predict(img_array)
+                    print('Predicted:', preds[0])
+
+                    # Generate class activation heatmap
+                    heatmap = obtain_grad_cam2(img_array, model, layer_name)
+
+                    # Resize heatmap to match the input image dimensions
+                    resized_heatmap = get_resized_heatmap(heatmap, input_volume.shape)
+
+                    # Plot original image
+                    ax[i][j].imshow(np.squeeze(input_volume[index][0]), cmap='bone')
+                    img0 = ax[i][j].imshow(np.squeeze(input_volume[index][0]), cmap='bone')
+                    # Plot heatmap on top of the image
+                    img1 = ax[i][j].imshow(resized_heatmap[:, :],
+                                           cmap='jet',
+                                           alpha=0.4,
+                                           extent=img0.get_extent())
+                    ax[i][j].axis('off')
+
+            plt.savefig(r'heatmaps\heatmap_4.png')
+            plt.tight_layout()
+            plt.show()
 
         # Build model
         model = training.build_model(type_model=type_model, weights=None, input_shape=input_shape)
 
-        # model.summary()
+        model.summary()
 
         print('\nCompiling....')
         learning_rate = 0.0001
@@ -217,11 +253,11 @@ if __name__ == '__main__':
         # model.save(type_model + '_model.h5')
 
         # Load weights in case of needing to validate the trained model again
-        model.load_weights('weights/Conv3DLSTM_V7_GaitEvents_BS32_bestw.h5')
+        model.load_weights('weights/Conv3DLSTM_V6_GaitEvents_BS32_bestw.h5')
         print(type_model + ' model weights loaded.')
 
         # Get Predictions and Ground Truths
-        print('Predicting in the validation set...')
+        """print('Predicting in the validation set...')
         prediction = model.predict(val_generator, verbose=1)
 
         val_true = []
@@ -239,7 +275,8 @@ if __name__ == '__main__':
                                 data='val',
                                 pred_labels=val_pred,
                                 true_labels=val_true,
-                                base_path=base_path)
+                                model=type_model,
+                                base_path=base_path)"""
 
         print('Predicting in the test set...')
         prediction = model.predict(test_generator, verbose=1)
@@ -260,9 +297,10 @@ if __name__ == '__main__':
                                 data='test',
                                 pred_labels=test_pred,
                                 true_labels=test_true,
+                                model=type_model,
                                 base_path=base_path)
         
-        training.call_metrics(y_true=val_true, 
+        """training.call_metrics(y_true=val_true, 
                               y_pred=val_pred, 
                               prediction=prediction, 
                               dir=evaluation_dir, 
@@ -272,7 +310,7 @@ if __name__ == '__main__':
                               y_pred=test_pred, 
                               prediction=prediction, 
                               dir=evaluation_dir,
-                              data='test')
+                              data='test')"""
 
         # print('Time of training: {} seconds'.format(time))
         # print('Network weights saved in: {}'.format(checkpoint))
