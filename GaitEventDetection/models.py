@@ -1006,8 +1006,291 @@ class DLModels:
         model.add(Dropout(0.5))
         model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))           
         model.add(Reshape((input_shape[1], 128)))                                                           
-        model.add(Bidirectional(LSTM(128, return_sequences=True, dropout=0.5, recurrent_dropout=0.5)))               # Added another Bi-LSTM layer with return_sequences = True and decreased number of features
+        model.add(Bidirectional(LSTM(128, return_sequences=True, dropout=0.5, recurrent_dropout=0.5)))               
         model.add(Bidirectional(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V10(self, num_classes, input_shape=(128, 3, 224, 224, 3)):                                           # Increased batch size
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)                                                                           # Decreased L1 and L2                                                           
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))           
+        model.add(Reshape((input_shape[1], 128)))                                                           
+        model.add(Bidirectional(LSTM(256, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))               # Removed a Bi-LSTM layer and increased number of features
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V11(self, num_classes, input_shape=(128, 3, 224, 224, 3)):
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)                                                                 
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))           
+        model.add(Reshape((input_shape[1], 128)))                                                           
+        model.add(Bidirectional(LSTM(128, return_sequences=True, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Bidirectional(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V12(self, num_classes, input_shape=(128, 3, 224, 224, 3)):                                           # Increased batch size
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)                                                                           # Decreased L1 and L2                                                           
+
+        model.add(Conv3D(64, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 256, activation='relu', kernel_regularizer=regularizer))           
+        model.add(Reshape((input_shape[1], 256)))                                                           
+        model.add(Bidirectional(LSTM(512, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V13(self, num_classes, input_shape=(32, 3, 224, 224, 3)):                                           # Increased batch size
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)                                                                           # Decreased L1 and L2                                                           
+
+        model.add(Conv3D(64, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(256, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 256, activation='relu', kernel_regularizer=regularizer))           
+        model.add(Reshape((input_shape[1], 256)))                                                           
+        model.add(Bidirectional(LSTM(256, return_sequences=True, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Bidirectional(LSTM(256, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V14(self, num_classes, input_shape=(32, 3, 224, 224, 3)):                                           # Increased batch size
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-5, l2=1e-4)                                                                           # Decreased L1 and L2                                                           
+
+        model.add(Conv3D(64, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 256, activation='relu', kernel_regularizer=regularizer))           
+        model.add(Reshape((input_shape[1], 256)))                                                           
+        model.add(Bidirectional(LSTM(128, return_sequences=True, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Bidirectional(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))               
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    # Based on V4
+    def Conv3DLSTM_V15(self, num_classes, input_shape=(64, 3, 224, 224, 3)):
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-4, l2=1e-3)
+
+        model.add(Conv3D(16, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                         kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(32, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.5))
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))
+        model.add(Reshape((input_shape[1], 128)))
+        model.add(Bidirectional(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+
+    def Conv3DLSTM_V16(self, num_classes, input_shape=(32, 3, 224, 224, 3)):
+        model = Sequential()
+
+        regularizer = l1_l2(l1=1e-4, l2=1e-3)
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same',
+                         kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Flatten())
+        model.add(Dropout(0.7))
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))
+        model.add(Reshape((input_shape[1], 128)))
+        model.add(Bidirectional(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5)))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+
+    def Conv3DLSTM_V17(self, num_classes, input_shape=(32, 3, 224, 224, 3)):
+        model = Sequential()
+        regularizer = l1_l2(l1=1e-4, l2=1e-3)
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(BatchNormalization())
+        model.add(Conv3D(32, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Flatten and Fully Connected Layer
+        model.add(Flatten())
+        model.add(Dropout(0.7))  # Adjusted Dropout
+        model.add(Dense(input_shape[1] * 64, activation='relu', kernel_regularizer=regularizer))  # Reduced units
+        model.add(Reshape((input_shape[1], 64)))  # Adjusted Reshape
+        
+        model.add(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))  # Adjusted Dropout
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+    
+    def Conv3DLSTM_V18(self, num_classes, input_shape=(32, 3, 224, 224, 3)):
+        model = Sequential()
+        regularizer = l1_l2(l1=1e-4, l2=1e-3)
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(BatchNormalization())
+        model.add(Conv3D(32, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(BatchNormalization())
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Flatten and Fully Connected Layer
+        model.add(Flatten())
+        model.add(Dropout(0.6))  # Adjusted Dropout
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))  # Increased units
+        model.add(Reshape((input_shape[1], 128)))  # Adjusted Reshape
+        
+        model.add(LSTM(128, return_sequences=False, dropout=0.5, recurrent_dropout=0.5))
+        model.add(Dense(num_classes, activation='softmax'))
+
+        return model
+
+    def Conv3DLSTM_V19(self, num_classes, input_shape=(32, 3, 224, 224, 3)):
+        model = Sequential()
+        regularizer = l1_l2(l1=1e-4, l2=1e-3)
+
+        model.add(Conv3D(32, (3, 3, 3), strides=(2, 2, 2), padding='same',
+                        kernel_regularizer=regularizer, input_shape=input_shape[1:]))
+        model.add(BatchNormalization())
+        model.add(Conv3D(32, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(BatchNormalization())
+        model.add(Conv3D(64, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        model.add(Conv3D(128, (3, 3, 3), padding='same', activation='relu', kernel_regularizer=regularizer))
+        model.add(MaxPooling3D((2, 2, 2), strides=(2, 2, 2), padding='same'))
+        model.add(BatchNormalization())
+
+        # Flatten and Fully Connected Layer
+        model.add(Flatten())
+        model.add(Dropout(0.7))  # Adjusted Dropout
+        model.add(Dense(input_shape[1] * 128, activation='relu', kernel_regularizer=regularizer))  # Increased units
+        model.add(Reshape((input_shape[1], 128)))  # Adjusted Reshape
+        
+        model.add(LSTM(256, return_sequences=False, dropout=0.7, recurrent_dropout=0.7))
         model.add(Dense(num_classes, activation='softmax'))
 
         return model
@@ -1064,6 +1347,26 @@ class TrainModel(DLModels):
             self.model = self.Conv3DLSTM_V8(self.num_classes, input_shape=input_shape)
         elif type_model == "Conv3DLSTM_V9":
             self.model = self.Conv3DLSTM_V9(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V10":
+            self.model = self.Conv3DLSTM_V10(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V11":
+            self.model = self.Conv3DLSTM_V11(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V12":
+            self.model = self.Conv3DLSTM_V12(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V13":
+            self.model = self.Conv3DLSTM_V13(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V14":
+            self.model = self.Conv3DLSTM_V14(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V15":
+            self.model = self.Conv3DLSTM_V15(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V16":
+            self.model = self.Conv3DLSTM_V16(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V17":
+            self.model = self.Conv3DLSTM_V17(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V18":
+            self.model = self.Conv3DLSTM_V18(self.num_classes, input_shape=input_shape)
+        elif type_model == "Conv3DLSTM_V19":
+            self.model = self.Conv3DLSTM_V19(self.num_classes, input_shape=input_shape)
 
         return self.model
 
@@ -1160,7 +1463,7 @@ class TrainModel(DLModels):
 
         return callbacks
 
-    def call_metrics(self, y_true, y_pred, prediction, dir, data):
+    def call_eval_metrics(self, y_true, y_pred, prediction, dir, data):
         y_true = np.array(y_true)
 
         # Check the shape of y_true and y_pred
@@ -1182,7 +1485,7 @@ class TrainModel(DLModels):
         roc_auc = roc_auc_score(y_true, prediction, multi_class='ovr')
 
         # Save ROC AUC to a file
-        with open(f'{dir}{data}_roc_auc_score.txt', 'w') as f:
+        with open(f'{dir}/{data}_roc_auc_score.txt', 'w') as f:
             f.write(f'ROC AUC: {roc_auc}\n')
 
         # Calculate ROC curve
@@ -1202,7 +1505,7 @@ class TrainModel(DLModels):
         plt.ylabel('True Positive Rate')
         plt.title('Receiver Operating Characteristic (ROC)')
         plt.legend(loc="lower right")
-        plt.savefig(f'{dir}{data}_roc_curve.png')
+        plt.savefig(f'{dir}/{data}_roc_curve.png')
         plt.close()
 
         # Calculate and plot Precision-Recall curve for each class
@@ -1215,7 +1518,7 @@ class TrainModel(DLModels):
             'Recall': recall,
             'Thresholds': np.append(thresholds, 1)  # to match the length
         })
-        pr_curve_data.to_csv(f'{dir}{data}_precision_recall_curve.csv', index=False)
+        pr_curve_data.to_csv(f'{dir}/{data}_precision_recall_curve.csv', index=False)
 
         # Plot and save Precision-Recall curve to a PNG file
         plt.figure()
@@ -1223,11 +1526,11 @@ class TrainModel(DLModels):
         plt.xlabel('Recall')
         plt.ylabel('Precision')
         plt.title('Precision-Recall Curve')
-        plt.savefig(f'{dir}{data}_precision_recall_curve.png')
+        plt.savefig(f'{dir}/{data}_precision_recall_curve.png')
         plt.close()
 
         ConfMat = skm.confusion_matrix(y_true.tolist(), y_pred)
-        np.savetxt(dir + f"{data}_ConfusionMatrix.csv", ConfMat, delimiter=",")
+        np.savetxt(dir + f"/{data}_ConfusionMatrix.csv", ConfMat, delimiter=",")
 
     def plot_history(hist, N, path):
         '''N = num_epochs'''

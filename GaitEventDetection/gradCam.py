@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import tensorflow as tf
 from scipy.ndimage import zoom
@@ -44,5 +43,3 @@ def get_resized_heatmap(heatmap, shape):
     )
 
     return upscaled_heatmap
-
-
